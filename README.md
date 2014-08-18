@@ -1,14 +1,8 @@
-[![browser support](https://ci.testling.com/mattdesl/fontpath-gl.png)](https://ci.testling.com/mattdesl/fontpath-gl)
-
 # fontpath-gl
 
 [![experimental](http://badges.github.io/stability-badges/dist/experimental.svg)](http://github.com/badges/stability-badges)
 
-Click to view demos:
-
 ![img2](http://i.imgur.com/ZMKUtQb.png)
-
-![img](http://i.imgur.com/OAWWJb3.png)
 
 A 2D [fontpath renderer](https://github.com/mattdesl/fontpath-simple-renderer) for stackgl. As opposed to [gl-render-text](https://www.npmjs.org/package/gl-render-text), which is texture based, this renderer is path-based.
 
@@ -80,6 +74,8 @@ The rendering mode, default `gl.TRIANGLES`.
 Disposes the mesh and its default shader. If you provided a shader during constructor, that shader will not be disposed. 
 
 ## triangulation
+
+![img](http://i.imgur.com/OAWWJb3.png)
 
 This uses [fontpath-shape2d](https://www.npmjs.org/package/fontpath-shape2d) and [poly2tri](https://www.npmjs.org/package/poly2tri) to approximate the bezier curves and triangulate the glyphs. In some cases these may fail to triangulate, or produce undesirable results. [Tess2](https://github.com/memononen/tess2.js) is more robust in some cases, but it leads to a less pleasing wireframe and doesn't allow for steiner points.
 
