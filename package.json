@@ -1,0 +1,63 @@
+{
+  "name": "fontpath-gl",
+  "version": "1.0.0",
+  "description": "a stackgl implementation for fontpath rendering",
+  "main": "index.js",
+  "license": "MIT",
+  "author": "Matt DesLauriers <dave.des@gmail.com>",
+  "dependencies": {
+    "fontpath-shape2d": "0.0.5",
+    "fontpath-simple-renderer": "^1.0.0",
+    "gl-matrix": "^2.1.0",
+    "shape2d-triangulate": "0.0.2"
+  },
+  "devDependencies": {
+    "canvas-testbed": "^0.4.0",
+    "color-string": "^0.2.1",
+    "fontpath-test-fonts": "0.0.4",
+    "gl-vignette-background": "^1.0.2",
+    "tape": "~2.13.2"
+  },
+  "scripts": {
+    "test": "tape test.js",
+    "build": "browserify demo/index.js -o demo/bundle/index.js && browserify demo/wireframe.js -o demo/bundle/wireframe.js"
+  },
+  "testling": {
+    "files": "test.js",
+    "browsers": [
+      "ie/6..latest",
+      "chrome/22..latest",
+      "firefox/16..latest",
+      "safari/latest",
+      "opera/11.0..latest",
+      "iphone/6",
+      "ipad/6",
+      "android-browser/latest"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/mattdesl/fontpath-gl.git"
+  },
+  "homepage": "https://github.com/mattdesl/fontpath-gl",
+  "bugs": {
+    "url": "https://github.com/mattdesl/fontpath-gl/issues"
+  },
+  "keywords": [
+    "stackgl",
+    "gl-modules",
+    "gl",
+    "webgl",
+    "glsl",
+    "modules-gl",
+    "opengl",
+    "font",
+    "text",
+    "glyph",
+    "render",
+    "word",
+    "wrap",
+    "ttf",
+    "otf"
+  ]
+}

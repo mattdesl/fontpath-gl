@@ -2,7 +2,8 @@
 
 [![experimental](http://badges.github.io/stability-badges/dist/experimental.svg)](http://github.com/badges/stability-badges)
 
-![img2](http://i.imgur.com/ZMKUtQb.png)
+[![img2](http://i.imgur.com/ZMKUtQb.png)](http://mattdesl.github.io/fontpath-gl/demo/index.html)  
+<sup>click to view demo</sup> 
 
 A 2D [fontpath renderer](https://github.com/mattdesl/fontpath-simple-renderer) for stackgl. As opposed to [gl-render-text](https://www.npmjs.org/package/gl-render-text), which is texture based, this renderer is path-based.
 
@@ -76,8 +77,8 @@ Disposes the mesh and its default shader. If you provided a shader during constr
 ## triangulation
 
 
-[![img](http://i.imgur.com/OAWWJb3.png)](mattdesl.github.io/fontpath-gl/demo/)  
-<sup>Click to view demo</sup>
+[![img](http://i.imgur.com/OAWWJb3.png)](http://mattdesl.github.io/fontpath-gl/demo/wireframe.html)  
+<sup>click to view demo</sup>
 
 This uses [fontpath-shape2d](https://www.npmjs.org/package/fontpath-shape2d) and [poly2tri](https://www.npmjs.org/package/poly2tri) to approximate the bezier curves and triangulate the glyphs. In some cases these may fail to triangulate, or produce undesirable results. [Tess2](https://github.com/memononen/tess2.js) is more robust in some cases, but it leads to a less pleasing wireframe and doesn't allow for steiner points.
 
