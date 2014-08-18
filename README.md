@@ -5,7 +5,7 @@
 [![img2](http://i.imgur.com/ZMKUtQb.png)](http://mattdesl.github.io/fontpath-gl/demo/index.html)  
 <sup>click to view demo</sup> 
 
-A 2D [fontpath renderer](https://github.com/mattdesl/fontpath-simple-renderer) for stackgl. As opposed to [gl-render-text](https://www.npmjs.org/package/gl-render-text), which is texture based, this renderer is path-based.
+A 2D [fontpath renderer](https://github.com/mattdesl/fontpath-simple-renderer) for [stackgl](https://github.com/stackgl/). As opposed to [gl-render-text](https://www.npmjs.org/package/gl-render-text), which is texture based, this renderer is path-based.
 
 Here is a quick overview of some pros to the fontpath approach:
 
