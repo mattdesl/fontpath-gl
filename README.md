@@ -54,7 +54,7 @@ In addition to the typical fontpath renderer options, you can also pass:
 
 - `mode` a primitive type, defaults to `gl.TRIANGLES`
 - `color` a RGBA color to tint the text, defaults to white `[1, 1, 1, 1]`
-- `shader` a shader to use when rendering the glyphs, instead of the default. 
+- `shader` a shader to use when rendering the glyphs, instead of the default. See [gl-basic-shader](https://www.npmjs.org/package/gl-basic-shader) for details on uniform/attribute names 
 - `simplifyAmount` in the case of the default poly2tri triangulator, this provides a means of simplifying the path to reduce the total number of vertices
 
 ### `mesh.color`
