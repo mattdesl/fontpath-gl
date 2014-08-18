@@ -1,6 +1,6 @@
 var createText = require('../')
 var createBackground = require('gl-vignette-background')
-var mat4 = require('gl-matrix').mat4
+var mat4 = require('gl-mat4')
 var colorString = require('color-string')
 var createDemo = require('canvas-testbed')
 

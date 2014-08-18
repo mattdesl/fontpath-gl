@@ -1,7 +1,13 @@
 var TextRenderer = require('fontpath-simple-renderer')
 var createShader = require('gl-basic-shader')
 
-var mat4 = require('gl-matrix').mat4
+//require only the math we really need..
+var mat4 = {
+    create: require('gl-mat4/create'),
+    identity: require('gl-mat4/identity'),
+    translate: require('gl-mat4/translate'),
+    scale: require('gl-mat4/scale')
+}
 
 var createMesh = require('gl-basic-mesh')
 

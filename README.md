@@ -9,7 +9,7 @@ A 2D [fontpath renderer](https://github.com/mattdesl/fontpath-simple-renderer) f
 
 Here is a quick overview of some pros to the fontpath approach:
 
-- More control over line width, word wrapping, kerning, underlines, etc
+- More control over line height, word wrapping, kerning, underlines, etc
 - More accurate paths and metrics, matching the curves from TTF/OTF files
 - More control for rich text animations and effects (such as triangulation)
 - Better for scaling, changing, and re-wrapping text on the fly
@@ -85,20 +85,24 @@ Disposes the mesh and its default shader. If you provided a shader during constr
 
 This uses [fontpath-shape2d](https://www.npmjs.org/package/fontpath-shape2d) and [poly2tri](https://www.npmjs.org/package/poly2tri) to approximate the bezier curves and triangulate the glyphs. In some cases these may fail to triangulate, or produce undesirable results. [Tess2](https://github.com/memononen/tess2.js) is more robust in some cases, but it leads to a less pleasing wireframe and doesn't allow for steiner points.
 
-To allow for custom triangulation without bloating the filesize with poly2tri, it has been broken off into a different file and only included with the `index.js` entry point. So, say you want to use Tess2 instead, your code would have to look like this:
+To allow for custom triangulation without bloating the filesize with poly2tri, it has been broken off into a different file and only included with the `index.js` entry point. So, say you want to use Tess2 without the heavy poly2tri dependency, your code would have to look like this:
 
 ```js
 //require the base class
 var TextRenderer = require('fontpath-gl/base')
 
 TextRenderer.prototype.triangulateGlyph = function (glyph) {
-	//... triangulate with Tess2, perhaps also do some simplification
-	//...
+	//... approximate glyph curves,
+	//... then triangulate with Tess2
+	//... you may also do some simplifying here
 	
 	//return an object in the following format
 	return {
-		positions: new Float32Array([ x1,y1,x2,y2... ]) //xy positions, required
-		cells: new Uint16Array([ i0,i1,i2... ]) //indices, optional
+		//xy positions, required
+		positions: new Float32Array([ x1,y1,x2,y2... ]) 
+
+		//indices, optional
+		cells: new Uint16Array([ i0,i1,i2... ]) 
 	}	
 }
 
@@ -107,7 +111,7 @@ module.exports = TextRenderer
 
 `cells` is optional, but indexing will produce more efficient rendering.
 
-You can also require `fontpath-gl/triangulate` which exposes the default `triangulateGlyph` function.
+You can also `require('fontpath-gl/triangulate')` which exposes the default `triangulateGlyph` function.
 
 See the [demo](demo/) folder for an example of custom triangulation.
 
@@ -115,7 +119,6 @@ See the [demo](demo/) folder for an example of custom triangulation.
 
 - underline rendering
 - more efficient caching / packing of vertex data
-- removing gl-matrix in favour of small stackgl modules
 - improve triangulation robustness
 
 ## License
