@@ -8,6 +8,8 @@
   "dependencies": {
     "fontpath-shape2d": "0.0.5",
     "fontpath-simple-renderer": "^1.0.0",
+    "gl-basic-mesh": "^1.0.1",
+    "gl-basic-shader": "^1.0.0",
     "gl-matrix": "^2.1.0",
     "shape2d-triangulate": "0.0.2"
   },
