@@ -7,19 +7,22 @@
 
 A 2D [fontpath renderer](https://github.com/mattdesl/fontpath-simple-renderer) for stackgl. As opposed to [gl-render-text](https://www.npmjs.org/package/gl-render-text), which is texture based, this renderer is path-based.
 
-Here is a quick overview of some pros/cons to the fontpath approach:
+Here is a quick overview of some pros to the fontpath approach:
 
-- :thumbsup: More control over line width, word wrapping, kerning, underlines, etc
-- :thumbsup: More accurate paths, matching the curves from TTF/OTF files
-- :thumbsup: More control for rich text animations and effects (such as triangulation)
-- :thumbsup: Better for scaling text to large sizes and dynamically changing and re-wrapping it
-- :thumbsup: Not relying on canvas means we don't need to deal with @font-face loading issues
-- :thumbsdown: Not robust for Complex Text Layout or non-Latin languages
-- :thumbsdown: Not ideal for small (hinted) font sizes or bitmap-based fonts
-- :thumbsdown: Not performant for large blocks of text since each glyph uses its own gl-vao
-- :thumbsdown: Triangulation with poly2tri is not always robust; fails with some fonts
-- :thumbsdown: The fontpath tool is not yet very stable or well-tested
-- :thumbsdown: Lack of anti-aliasing in some browsers, or when rendering to an offscreen buffer
+- More control over line width, word wrapping, kerning, underlines, etc
+- More accurate paths, matching the curves from TTF/OTF files
+- More control for rich text animations and effects (such as triangulation)
+- Better for scaling text to large sizes and dynamically changing and re-wrapping it
+- Not relying on canvas means we don't need to deal with @font-face loading issues
+
+Some downsides:
+
+- Not robust for Complex Text Layout or non-Latin languages
+- Not ideal for small (hinted) font sizes or bitmap-based fonts
+- Not performant for large blocks of text since each glyph uses its own gl-vao
+- Triangulation with poly2tri is not always robust; fails with some fonts
+- The fontpath tool is not yet very stable or well-tested
+- Lack of anti-aliasing in some browsers, or when rendering to an offscreen buffer
 
 ## Usage
 
