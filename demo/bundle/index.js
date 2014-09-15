@@ -142,7 +142,7 @@ var ortho = mat4.create(),
     colorB = rgb('#143251')
 
 function render(gl, width, height) {
-    gl.viewport(0, 0, width, height)
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
 
     gl.clearColor(1,1,1,1)
     gl.clear(gl.COLOR_BUFFER_BIT)
