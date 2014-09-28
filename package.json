@@ -14,10 +14,10 @@
     "shape2d-triangulate": "0.0.2"
   },
   "devDependencies": {
-    "canvas-testbed": "^0.4.0",
+    "canvas-testbed": "^1.0.0",
     "color-string": "^0.2.1",
     "fontpath-test-fonts": "0.0.4",
-    "gl-vignette-background": "^1.0.2",
+    "gl-vignette-background": "^1.0.4",
     "tape": "~2.13.2"
   },
   "scripts": {

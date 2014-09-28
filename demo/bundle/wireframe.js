@@ -144,7 +144,7 @@ var ortho = mat4.create(),
 function render(gl, width, height) {
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
 
-    gl.clearColor(1,1,1,1)
+    gl.clearColor(0,1,1,1)
     gl.clear(gl.COLOR_BUFFER_BIT)
 
     //style background
@@ -397,6 +397,8 @@ function CanvasApp(render, options) {
         if (!this.isWebGL) {
             this.context.save();
             this.context.scale(this._DPR, this._DPR);
+        } else {
+            this.context.viewport(0, 0, this.width * this._DPR, this.height * this._DPR);
         }
         
         this.onRender(this.context, this.width, this.height, dt);
@@ -516,8 +518,10 @@ module.exports = function(opts) {
 
   var fns = [], listener
     , doc = document
+    , hack = doc.documentElement.doScroll
     , domContentLoaded = 'DOMContentLoaded'
-    , loaded = /^loaded|^c/.test(doc.readyState)
+    , loaded = (hack ? /^loaded|^c/ : /^loaded|^i|^c/).test(doc.readyState)
+
 
   if (!loaded)
   doc.addEventListener(domContentLoaded, listener = function () {
@@ -3261,7 +3265,7 @@ proto.update = function(array, offset) {
       dtype = "float32"
     }
     if(this.type === this.gl.ELEMENT_ARRAY_BUFFER) {
-      var wgl = webglew(gl)
+      var wgl = webglew(this.gl)
       var ext = wgl.OES_element_index_uint
       if(ext && dtype !== "uint16") {
         dtype = "uint32"
@@ -4970,8 +4974,12 @@ function dupe(count, value) {
 module.exports = dupe
 },{}],35:[function(require,module,exports){
 (function (global,Buffer){
-var bits = require("bit-twiddle")
-var dup = require("dup")
+'use strict'
+
+var bits = require('bit-twiddle')
+var dup = require('dup')
+
+//Legacy pool support
 if(!global.__TYPEDARRAY_POOL) {
   global.__TYPEDARRAY_POOL = {
       UINT8   : dup([32, 0])
@@ -4987,219 +4995,100 @@ if(!global.__TYPEDARRAY_POOL) {
     , BUFFER  : dup([32, 0])
   }
 }
-var hasUint8C = (typeof Uint8ClampedArray) !== "undefined"
+
+var hasUint8C = (typeof Uint8ClampedArray) !== 'undefined'
 var POOL = global.__TYPEDARRAY_POOL
+
+//Upgrade pool
 if(!POOL.UINT8C) {
   POOL.UINT8C = dup([32, 0])
 }
 if(!POOL.BUFFER) {
   POOL.BUFFER = dup([32, 0])
 }
-var UINT8   = POOL.UINT8
-  , UINT16  = POOL.UINT16
-  , UINT32  = POOL.UINT32
-  , INT8    = POOL.INT8
-  , INT16   = POOL.INT16
-  , INT32   = POOL.INT32
-  , FLOAT   = POOL.FLOAT
-  , DOUBLE  = POOL.DOUBLE
-  , DATA    = POOL.DATA
-  , UINT8C  = POOL.UINT8C
+
+//New technique: Only allocate from ArrayBufferView and Buffer
+var DATA    = POOL.DATA
   , BUFFER  = POOL.BUFFER
 
 exports.free = function free(array) {
-  var n = array.length|0
-    , log_n = bits.log2(n)
   if(Buffer.isBuffer(array)) {
-    BUFFER[log_n].push(array)
+    BUFFER[bits.log2(array.length)].push(array)
   } else {
-    switch(Object.prototype.toString.call(array)) {
-      case "[object Uint8Array]":
-        UINT8[log_n].push(array)
-      break
-      case "[object Uint16Array]":
-        UINT16[log_n].push(array)
-      break
-      case "[object Uint32Array]":
-        UINT32[log_n].push(array)
-      break
-      case "[object Int8Array]":
-        INT8[log_n].push(array)
-      break
-      case "[object Int16Array]":
-        INT16[log_n].push(array)
-      break
-      case "[object Int32Array]":
-        INT32[log_n].push(array)
-      break
-      case "[object Uint8ClampedArray]":
-        UINT8C[log_n].push(array)
-      break
-      case "[object Float32Array]":
-        FLOAT[log_n].push(array)
-      break
-      case "[object Float64Array]":
-        DOUBLE[log_n].push(array)
-      break
-      case "[object ArrayBuffer]":
-        DATA[log_n].push(array)
-      break
-      default:
-        throw new Error("typedarray-pool: Unspecified array type")
+    if(Object.prototype.toString.call(array) !== '[object ArrayBuffer]') {
+      array = array.buffer
     }
+    if(!array) {
+      return
+    }
+    var n = array.length || array.byteLength
+    var log_n = bits.log2(n)|0
+    DATA[log_n].push(array)
   }
 }
 
-exports.freeUint8 = function freeUint8(array) {
-  UINT8[bits.log2(array.length)].push(array)
-}
-
-exports.freeUint16 = function freeUint16(array) {
-  UINT16[bits.log2(array.length)].push(array)
-}
-
-exports.freeUint32 = function freeUint32(array) {
-  UINT32[bits.log2(array.length)].push(array)
-}
-
-exports.freeInt8 = function freeInt8(array) {
-  INT8[bits.log2(array.length)].push(array)
-}
-
-exports.freeInt16 = function freeInt16(array) {
-  INT16[bits.log2(array.length)].push(array)
-}
-
-exports.freeInt32 = function freeInt32(array) {
-  INT32[bits.log2(array.length)].push(array)
-}
-
-exports.freeFloat32 = exports.freeFloat = function freeFloat(array) {
-  FLOAT[bits.log2(array.length)].push(array)
-}
-
-exports.freeFloat64 = exports.freeDouble = function freeDouble(array) {
-  DOUBLE[bits.log2(array.length)].push(array)
-}
-
-exports.freeArrayBuffer = function freeArrayBuffer(array) {
-  DATA[bits.log2(array.length)].push(array)
-}
-
-if(hasUint8C) {
-  exports.freeUint8Clamped = function freeUint8Clamped(array) {
-    UINT8C[bits.log2(array.length)].push(array)
+function freeArrayBuffer(buffer) {
+  if(!buffer) {
+    return
   }
-} else {
-  exports.freeUint8Clamped = exports.freeUint8
+  var n = buffer.length || buffer.byteLength
+  var log_n = bits.log2(n)
+  DATA[log_n].push(buffer)
 }
+
+function freeTypedArray(array) {
+  freeArrayBuffer(array.buffer)
+}
+
+exports.freeUint8 =
+exports.freeUint16 =
+exports.freeUint32 =
+exports.freeInt8 =
+exports.freeInt16 =
+exports.freeInt32 =
+exports.freeFloat32 = 
+exports.freeFloat =
+exports.freeFloat64 = 
+exports.freeDouble = 
+exports.freeUint8Clamped = 
+exports.freeDataView = freeTypedArray
+
+exports.freeArrayBuffer = freeArrayBuffer
 
 exports.freeBuffer = function freeBuffer(array) {
   BUFFER[bits.log2(array.length)].push(array)
 }
 
 exports.malloc = function malloc(n, dtype) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  if(dtype === undefined || dtype === "arraybuffer") {
-    var d = DATA[log_n]
-    if(d.length > 0) {
-      var r = d[d.length-1]
-      d.pop()
-      return r
-    }
-    return new ArrayBuffer(n)
+  if(dtype === undefined || dtype === 'arraybuffer') {
+    return mallocArrayBuffer(n)
   } else {
     switch(dtype) {
-      case "uint8":
-        var u8 = UINT8[log_n]
-        if(u8.length > 0) {
-          return u8.pop()
-        }
-        return new Uint8Array(n)
-      break
-
-      case "uint16":
-        var u16 = UINT16[log_n]
-        if(u16.length > 0) {
-          return u16.pop()
-        }
-        return new Uint16Array(n)
-      break
-
-      case "uint32":
-        var u32 = UINT32[log_n]
-        if(u32.length > 0) {
-          return u32.pop()
-        }
-        return new Uint32Array(n)
-      break
-
-      case "int8":
-        var i8 = INT8[log_n]
-        if(i8.length > 0) {
-          return i8.pop()
-        }
-        return new Int8Array(n)
-      break
-
-      case "int16":
-        var i16 = INT16[log_n]
-        if(i16.length > 0) {
-          return i16.pop()
-        }
-        return new Int16Array(n)
-      break
-
-      case "int32":
-        var i32 = INT32[log_n]
-        if(i32.length > 0) {
-          return i32.pop()
-        }
-        return new Int32Array(n)
-      break
-
-      case "float":
-      case "float32":
-        var f = FLOAT[log_n]
-        if(f.length > 0) {
-          return f.pop()
-        }
-        return new Float32Array(n)
-      break
-
-      case "double":
-      case "float64":
-        var dd = DOUBLE[log_n]
-        if(dd.length > 0) {
-          return dd.pop()
-        }
-        return new Float64Array(n)
-      break
-
-      case "uint8_clamped":
-        if(hasUint8C) {
-          var u8c = UINT8C[log_n]
-          if(u8c.length > 0) {
-            return u8c.pop()
-          }
-          return new Uint8ClampedArray(n)
-        } else {
-          var u8 = UINT8[log_n]
-          if(u8.length > 0) {
-            return u8.pop()
-          }
-          return new Uint8Array(n)
-        }
-      break
-
-      case "buffer":
-        var buf = BUFFER[log_n]
-        if(buf.length > 0) {
-          return buf.pop()
-        }
-        return new Buffer(n)
-      break
+      case 'uint8':
+        return mallocUint8(n)
+      case 'uint16':
+        return mallocUint16(n)
+      case 'uint32':
+        return mallocUint32(n)
+      case 'int8':
+        return mallocInt8(n)
+      case 'int16':
+        return mallocInt16(n)
+      case 'int32':
+        return mallocInt32(n)
+      case 'float':
+      case 'float32':
+        return mallocFloat(n)
+      case 'double':
+      case 'float64':
+        return mallocDouble(n)
+      case 'uint8_clamped':
+        return mallocUint8Clamped(n)
+      case 'buffer':
+        return mallocBuffer(n)
+      case 'data':
+      case 'dataview':
+        return mallocDataView(n)
 
       default:
         return null
@@ -5208,111 +5097,72 @@ exports.malloc = function malloc(n, dtype) {
   return null
 }
 
-exports.mallocUint8 = function mallocUint8(n) {
-  n = bits.nextPow2(n)
+function mallocArrayBuffer(n) {
+  var n = bits.nextPow2(n)
   var log_n = bits.log2(n)
-  var cache = UINT8[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new Uint8Array(n)
-}
-
-exports.mallocUint16 = function mallocUint16(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = UINT16[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new Uint16Array(n)
-}
-
-exports.mallocUint32 = function mallocUint32(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = UINT32[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new Uint32Array(n)
-}
-
-exports.mallocInt8 = function mallocInt8(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = INT8[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new Int8Array(n)
-}
-
-exports.mallocInt16 = function mallocInt16(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = INT16[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new Int16Array(n)
-}
-
-exports.mallocInt32 = function mallocInt32(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = INT32[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new Int32Array(n)
-}
-
-exports.mallocFloat32 = exports.mallocFloat = function mallocFloat(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = FLOAT[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new Float32Array(n)
-}
-
-exports.mallocFloat64 = exports.mallocDouble = function mallocDouble(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = DOUBLE[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new Float64Array(n)
-}
-
-exports.mallocArrayBuffer = function mallocArrayBuffer(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = DATA[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
+  var d = DATA[log_n]
+  if(d.length > 0) {
+    return d.pop()
   }
   return new ArrayBuffer(n)
 }
+exports.mallocArrayBuffer = mallocArrayBuffer
 
-if(hasUint8C) {
-  exports.mallocUint8Clamped = function mallocUint8Clamped(n) {
-    n = bits.nextPow2(n)
-    var log_n = bits.log2(n)
-    var cache = UINT8C[log_n]
-    if(cache.length > 0) {
-      return cache.pop()
-    }
-    return new Uint8ClampedArray(n)
-  }
-} else {
-  exports.mallocUint8Clamped = exports.mallocUint8
+function mallocUint8(n) {
+  return new Uint8Array(mallocArrayBuffer(n), 0, n)
 }
+exports.mallocUint8 = mallocUint8
 
-exports.mallocBuffer = function mallocBuffer(n) {
+function mallocUint16(n) {
+  return new Uint16Array(mallocArrayBuffer(2*n), 0, n)
+}
+exports.mallocUint16 = mallocUint16
+
+function mallocUint32(n) {
+  return new Uint32Array(mallocArrayBuffer(4*n), 0, n)
+}
+exports.mallocUint32 = mallocUint32
+
+function mallocInt8(n) {
+  return new Int8Array(mallocArrayBuffer(n), 0, n)
+}
+exports.mallocInt8 = mallocInt8
+
+function mallocInt16(n) {
+  return new Int16Array(mallocArrayBuffer(2*n), 0, n)
+}
+exports.mallocInt16 = mallocInt16
+
+function mallocInt32(n) {
+  return new Int32Array(mallocArrayBuffer(4*n), 0, n)
+}
+exports.mallocInt32 = mallocInt32
+
+function mallocFloat(n) {
+  return new Float32Array(mallocArrayBuffer(4*n), 0, n)
+}
+exports.mallocFloat32 = exports.mallocFloat = mallocFloat
+
+function mallocDouble(n) {
+  return new Float64Array(mallocArrayBuffer(8*n), 0, n)
+}
+exports.mallocFloat64 = exports.mallocDouble = mallocDouble
+
+function mallocUint8Clamped(n) {
+  if(hasUint8C) {
+    return new Uint8ClampedArray(mallocArrayBuffer(n), 0, n)
+  } else {
+    return mallocUint8(n)
+  }
+}
+exports.mallocUint8Clamped = mallocUint8Clamped
+
+function mallocDataView(n) {
+  return new DataView(mallocArrayBuffer(n), 0, n)
+}
+exports.mallocDataView = mallocDataView
+
+function mallocBuffer(n) {
   n = bits.nextPow2(n)
   var log_n = bits.log2(n)
   var cache = BUFFER[log_n]
@@ -5321,19 +5171,20 @@ exports.mallocBuffer = function mallocBuffer(n) {
   }
   return new Buffer(n)
 }
+exports.mallocBuffer = mallocBuffer
 
 exports.clearCache = function clearCache() {
   for(var i=0; i<32; ++i) {
-    UINT8[i].length = 0
-    UINT16[i].length = 0
-    UINT32[i].length = 0
-    INT8[i].length = 0
-    INT16[i].length = 0
-    INT32[i].length = 0
-    FLOAT[i].length = 0
-    DOUBLE[i].length = 0
+    POOL.UINT8[i].length = 0
+    POOL.UINT16[i].length = 0
+    POOL.UINT32[i].length = 0
+    POOL.INT8[i].length = 0
+    POOL.INT16[i].length = 0
+    POOL.INT32[i].length = 0
+    POOL.FLOAT[i].length = 0
+    POOL.DOUBLE[i].length = 0
+    POOL.UINT8C[i].length = 0
     DATA[i].length = 0
-    UINT8C[i].length = 0
     BUFFER[i].length = 0
   }
 }
@@ -5581,14 +5432,14 @@ void function(global, undefined_, undefined){
 }((0, eval)('this'));
 
 },{}],37:[function(require,module,exports){
-"use strict";
+'use strict'
 
-var weakMap = typeof WeakMap === "undefined" ? require("weakmap") : WeakMap
+var weakMap = typeof WeakMap === 'undefined' ? require('weakmap') : WeakMap
 
 var WebGLEWStruct = new weakMap()
 
 function baseName(ext_name) {
-  return ext_name.replace(/^[A-Z]+_/, "")
+  return ext_name.replace(/^[A-Z]+_/, '')
 }
 
 function initWebGLEW(gl) {
@@ -5600,6 +5451,11 @@ function initWebGLEW(gl) {
   var supported = gl.getSupportedExtensions()
   for(var i=0; i<supported.length; ++i) {
     var extName = supported[i]
+
+    //Skip MOZ_ extensions
+    if(extName.indexOf('MOZ_') === 0) {
+      continue
+    }
     var ext = gl.getExtension(supported[i])
     if(!ext) {
       continue
@@ -5681,15 +5537,17 @@ function VAOEmulated(gl) {
   this.gl = gl
   this._elements = null
   this._attributes = null
+  this._elementsType = gl.UNSIGNED_SHORT
 }
 
 VAOEmulated.prototype.bind = function() {
   bindAttribs(this.gl, this._elements, this._attributes)
 }
 
-VAOEmulated.prototype.update = function(attributes, elements) {
+VAOEmulated.prototype.update = function(attributes, elements, elementsType) {
   this._elements = elements
   this._attributes = attributes
+  this._elementsType = elementsType || this.gl.UNSIGNED_SHORT
 }
 
 VAOEmulated.prototype.dispose = function() { }
@@ -5699,7 +5557,7 @@ VAOEmulated.prototype.draw = function(mode, count, offset) {
   offset = offset || 0
   var gl = this.gl
   if(this._elements) {
-    gl.drawElements(mode, count, gl.UNSIGNED_SHORT, offset)
+    gl.drawElements(mode, count, this._elementsType, offset)
   } else {
     gl.drawArrays(mode, offset, count)
   }
@@ -5747,6 +5605,7 @@ function VAONative(gl, ext, handle) {
   this.handle = handle
   this._attribs = []
   this._useElements = false
+  this._elementsType = gl.UNSIGNED_SHORT
 }
 
 VAONative.prototype.bind = function() {
@@ -5764,7 +5623,7 @@ VAONative.prototype.dispose = function() {
   this._ext.deleteVertexArrayOES(this.handle)
 }
 
-VAONative.prototype.update = function(attributes, elements) {
+VAONative.prototype.update = function(attributes, elements, elementsType) {
   this.bind()
   bindAttribs(this.gl, elements, attributes)
   this.unbind()
@@ -5779,13 +5638,14 @@ VAONative.prototype.update = function(attributes, elements) {
     }
   }
   this._useElements = !!elements
+  this._elementsType = elementsType || this.gl.UNSIGNED_SHORT
 }
 
 VAONative.prototype.draw = function(mode, count, offset) {
   offset = offset || 0
   var gl = this.gl
   if(this._useElements) {
-    gl.drawElements(mode, count, gl.UNSIGNED_SHORT, offset)
+    gl.drawElements(mode, count, this._elementsType, offset)
   } else {
     gl.drawArrays(mode, offset, count)
   }
@@ -5807,7 +5667,7 @@ var webglew = require("webglew")
 var createVAONative = require("./lib/vao-native.js")
 var createVAOEmulated = require("./lib/vao-emulated.js")
 
-function createVAO(gl, attributes, elements) {
+function createVAO(gl, attributes, elements, elementsType) {
   var ext = webglew(gl).OES_vertex_array_object
   var vao
   if(ext) {
@@ -5815,7 +5675,7 @@ function createVAO(gl, attributes, elements) {
   } else {
     vao = createVAOEmulated(gl)
   }
-  vao.update(attributes, elements)
+  vao.update(attributes, elements, elementsType)
   return vao
 }
 
@@ -7494,7 +7354,157 @@ Quad.prototype.dispose = function() {
 
 module.exports = Quad
 },{"gl-buffer":75,"gl-vao":93}],75:[function(require,module,exports){
-module.exports=require(25)
+"use strict"
+
+var pool = require("typedarray-pool")
+var ops = require("ndarray-ops")
+var ndarray = require("ndarray")
+var webglew = require("webglew")
+
+var SUPPORTED_TYPES = [
+  "uint8",
+  "uint8_clamped",
+  "uint16",
+  "uint32",
+  "int8",
+  "int16",
+  "int32",
+  "float32" ]
+
+function GLBuffer(gl, type, handle, length, usage) {
+  this.gl = gl
+  this.type = type
+  this.handle = handle
+  this.length = length
+  this.usage = usage
+}
+
+var proto = GLBuffer.prototype
+
+proto.bind = function() {
+  this.gl.bindBuffer(this.type, this.handle)
+}
+
+proto.dispose = function() {
+  this.gl.deleteBuffer(this.handle)
+}
+
+function updateTypeArray(gl, type, len, usage, data, offset) {
+  var dataLen = data.length * data.BYTES_PER_ELEMENT 
+  if(offset < 0) {
+    gl.bufferData(type, data, usage)
+    return dataLen
+  }
+  if(dataLen + offset > len) {
+    throw new Error("gl-buffer: If resizing buffer, must not specify offset")
+  }
+  gl.bufferSubData(type, offset, data)
+  return len
+}
+
+function makeScratchTypeArray(array, dtype) {
+  var res = pool.malloc(array.length, dtype)
+  var n = array.length
+  for(var i=0; i<n; ++i) {
+    res[i] = array[i]
+  }
+  return res
+}
+
+function isPacked(shape, stride) {
+  var n = 1
+  for(var i=stride.length-1; i>=0; --i) {
+    if(stride[i] !== n) {
+      return false
+    }
+    n *= shape[i]
+  }
+  return true
+}
+
+proto.update = function(array, offset) {
+  if(typeof offset !== "number") {
+    offset = -1
+  }
+  this.bind()
+  if(typeof array === "object" && typeof array.shape !== "undefined") { //ndarray
+    var dtype = array.dtype
+    if(SUPPORTED_TYPES.indexOf(dtype) < 0) {
+      dtype = "float32"
+    }
+    if(this.type === this.gl.ELEMENT_ARRAY_BUFFER) {
+      var wgl = webglew(gl)
+      var ext = wgl.OES_element_index_uint
+      if(ext && dtype !== "uint16") {
+        dtype = "uint32"
+      } else {
+        dtype = "uint16"
+      }
+    }
+    if(dtype === array.dtype && isPacked(array.shape, array.stride)) {
+      if(array.offset === 0 && array.data.length === array.shape[0]) {
+        this.length = updateTypeArray(this.gl, this.type, this.length, this.usage, array.data, offset)
+      } else {
+        this.length = updateTypeArray(this.gl, this.type, this.length, this.usage, array.data.subarray(array.offset, array.shape[0]), offset)
+      }
+    } else {
+      var tmp = pool.malloc(array.size, dtype)
+      var ndt = ndarray(tmp, array.shape)
+      ops.assign(ndt, array)
+      if(offset < 0) {
+        this.length = updateTypeArray(this.gl, this.type, this.length, this.usage, tmp, offset)  
+      } else {
+        this.length = updateTypeArray(this.gl, this.type, this.length, this.usage, tmp.subarray(0, array.size), offset)  
+      }
+      pool.free(tmp)
+    }
+  } else if(Array.isArray(array)) { //Vanilla array
+    var t
+    if(this.type === this.gl.ELEMENT_ARRAY_BUFFER) {
+      t = makeScratchTypeArray(array, "uint16")
+    } else {
+      t = makeScratchTypeArray(array, "float32")
+    }
+    if(offset < 0) {
+      this.length = updateTypeArray(this.gl, this.type, this.length, this.usage, t, offset)
+    } else {
+      this.length = updateTypeArray(this.gl, this.type, this.length, this.usage, t.subarray(0, array.length), offset)
+    }
+    pool.free(t)
+  } else if(typeof array === "object" && typeof array.length === "number") { //Typed array
+    this.length = updateTypeArray(this.gl, this.type, this.length, this.usage, array, offset)
+  } else if(typeof array === "number" || array === undefined) { //Number/default
+    if(offset >= 0) {
+      throw new Error("gl-buffer: Cannot specify offset when resizing buffer")
+    }
+    array = array | 0
+    if(array <= 0) {
+      array = 1
+    }
+    this.gl.bufferData(this.type, array|0, this.usage)
+    this.length = array
+  } else { //Error, case should not happen
+    throw new Error("gl-buffer: Invalid data type")
+  }
+}
+
+function createBuffer(gl, data, type, usage) {
+  webglew(gl)
+  type = type || gl.ARRAY_BUFFER
+  usage = usage || gl.DYNAMIC_DRAW
+  if(type !== gl.ARRAY_BUFFER && type !== gl.ELEMENT_ARRAY_BUFFER) {
+    throw new Error("gl-buffer: Invalid type for webgl buffer, must be either gl.ARRAY_BUFFER or gl.ELEMENT_ARRAY_BUFFER")
+  }
+  if(usage !== gl.DYNAMIC_DRAW && usage !== gl.STATIC_DRAW && usage !== gl.STREAM_DRAW) {
+    throw new Error("gl-buffer: Invalid usage for buffer, must be either gl.DYNAMIC_DRAW, gl.STATIC_DRAW or gl.STREAM_DRAW")
+  }
+  var handle = gl.createBuffer()
+  var result = new GLBuffer(gl, type, handle, 0, usage)
+  result.update(data)
+  return result
+}
+
+module.exports = createBuffer
 },{"ndarray":81,"ndarray-ops":76,"typedarray-pool":85,"webglew":87}],76:[function(require,module,exports){
 module.exports=require(26)
 },{"cwise-compiler":77}],77:[function(require,module,exports){
@@ -7514,23 +7524,564 @@ module.exports=require(33)
 },{}],84:[function(require,module,exports){
 module.exports=require(34)
 },{}],85:[function(require,module,exports){
-module.exports=require(35)
+(function (global,Buffer){
+var bits = require("bit-twiddle")
+var dup = require("dup")
+if(!global.__TYPEDARRAY_POOL) {
+  global.__TYPEDARRAY_POOL = {
+      UINT8   : dup([32, 0])
+    , UINT16  : dup([32, 0])
+    , UINT32  : dup([32, 0])
+    , INT8    : dup([32, 0])
+    , INT16   : dup([32, 0])
+    , INT32   : dup([32, 0])
+    , FLOAT   : dup([32, 0])
+    , DOUBLE  : dup([32, 0])
+    , DATA    : dup([32, 0])
+    , UINT8C  : dup([32, 0])
+    , BUFFER  : dup([32, 0])
+  }
+}
+var hasUint8C = (typeof Uint8ClampedArray) !== "undefined"
+var POOL = global.__TYPEDARRAY_POOL
+if(!POOL.UINT8C) {
+  POOL.UINT8C = dup([32, 0])
+}
+if(!POOL.BUFFER) {
+  POOL.BUFFER = dup([32, 0])
+}
+var UINT8   = POOL.UINT8
+  , UINT16  = POOL.UINT16
+  , UINT32  = POOL.UINT32
+  , INT8    = POOL.INT8
+  , INT16   = POOL.INT16
+  , INT32   = POOL.INT32
+  , FLOAT   = POOL.FLOAT
+  , DOUBLE  = POOL.DOUBLE
+  , DATA    = POOL.DATA
+  , UINT8C  = POOL.UINT8C
+  , BUFFER  = POOL.BUFFER
+
+exports.free = function free(array) {
+  var n = array.length|0
+    , log_n = bits.log2(n)
+  if(Buffer.isBuffer(array)) {
+    BUFFER[log_n].push(array)
+  } else {
+    switch(Object.prototype.toString.call(array)) {
+      case "[object Uint8Array]":
+        UINT8[log_n].push(array)
+      break
+      case "[object Uint16Array]":
+        UINT16[log_n].push(array)
+      break
+      case "[object Uint32Array]":
+        UINT32[log_n].push(array)
+      break
+      case "[object Int8Array]":
+        INT8[log_n].push(array)
+      break
+      case "[object Int16Array]":
+        INT16[log_n].push(array)
+      break
+      case "[object Int32Array]":
+        INT32[log_n].push(array)
+      break
+      case "[object Uint8ClampedArray]":
+        UINT8C[log_n].push(array)
+      break
+      case "[object Float32Array]":
+        FLOAT[log_n].push(array)
+      break
+      case "[object Float64Array]":
+        DOUBLE[log_n].push(array)
+      break
+      case "[object ArrayBuffer]":
+        DATA[log_n].push(array)
+      break
+      default:
+        throw new Error("typedarray-pool: Unspecified array type")
+    }
+  }
+}
+
+exports.freeUint8 = function freeUint8(array) {
+  UINT8[bits.log2(array.length)].push(array)
+}
+
+exports.freeUint16 = function freeUint16(array) {
+  UINT16[bits.log2(array.length)].push(array)
+}
+
+exports.freeUint32 = function freeUint32(array) {
+  UINT32[bits.log2(array.length)].push(array)
+}
+
+exports.freeInt8 = function freeInt8(array) {
+  INT8[bits.log2(array.length)].push(array)
+}
+
+exports.freeInt16 = function freeInt16(array) {
+  INT16[bits.log2(array.length)].push(array)
+}
+
+exports.freeInt32 = function freeInt32(array) {
+  INT32[bits.log2(array.length)].push(array)
+}
+
+exports.freeFloat32 = exports.freeFloat = function freeFloat(array) {
+  FLOAT[bits.log2(array.length)].push(array)
+}
+
+exports.freeFloat64 = exports.freeDouble = function freeDouble(array) {
+  DOUBLE[bits.log2(array.length)].push(array)
+}
+
+exports.freeArrayBuffer = function freeArrayBuffer(array) {
+  DATA[bits.log2(array.length)].push(array)
+}
+
+if(hasUint8C) {
+  exports.freeUint8Clamped = function freeUint8Clamped(array) {
+    UINT8C[bits.log2(array.length)].push(array)
+  }
+} else {
+  exports.freeUint8Clamped = exports.freeUint8
+}
+
+exports.freeBuffer = function freeBuffer(array) {
+  BUFFER[bits.log2(array.length)].push(array)
+}
+
+exports.malloc = function malloc(n, dtype) {
+  n = bits.nextPow2(n)
+  var log_n = bits.log2(n)
+  if(dtype === undefined || dtype === "arraybuffer") {
+    var d = DATA[log_n]
+    if(d.length > 0) {
+      var r = d[d.length-1]
+      d.pop()
+      return r
+    }
+    return new ArrayBuffer(n)
+  } else {
+    switch(dtype) {
+      case "uint8":
+        var u8 = UINT8[log_n]
+        if(u8.length > 0) {
+          return u8.pop()
+        }
+        return new Uint8Array(n)
+      break
+
+      case "uint16":
+        var u16 = UINT16[log_n]
+        if(u16.length > 0) {
+          return u16.pop()
+        }
+        return new Uint16Array(n)
+      break
+
+      case "uint32":
+        var u32 = UINT32[log_n]
+        if(u32.length > 0) {
+          return u32.pop()
+        }
+        return new Uint32Array(n)
+      break
+
+      case "int8":
+        var i8 = INT8[log_n]
+        if(i8.length > 0) {
+          return i8.pop()
+        }
+        return new Int8Array(n)
+      break
+
+      case "int16":
+        var i16 = INT16[log_n]
+        if(i16.length > 0) {
+          return i16.pop()
+        }
+        return new Int16Array(n)
+      break
+
+      case "int32":
+        var i32 = INT32[log_n]
+        if(i32.length > 0) {
+          return i32.pop()
+        }
+        return new Int32Array(n)
+      break
+
+      case "float":
+      case "float32":
+        var f = FLOAT[log_n]
+        if(f.length > 0) {
+          return f.pop()
+        }
+        return new Float32Array(n)
+      break
+
+      case "double":
+      case "float64":
+        var dd = DOUBLE[log_n]
+        if(dd.length > 0) {
+          return dd.pop()
+        }
+        return new Float64Array(n)
+      break
+
+      case "uint8_clamped":
+        if(hasUint8C) {
+          var u8c = UINT8C[log_n]
+          if(u8c.length > 0) {
+            return u8c.pop()
+          }
+          return new Uint8ClampedArray(n)
+        } else {
+          var u8 = UINT8[log_n]
+          if(u8.length > 0) {
+            return u8.pop()
+          }
+          return new Uint8Array(n)
+        }
+      break
+
+      case "buffer":
+        var buf = BUFFER[log_n]
+        if(buf.length > 0) {
+          return buf.pop()
+        }
+        return new Buffer(n)
+      break
+
+      default:
+        return null
+    }
+  }
+  return null
+}
+
+exports.mallocUint8 = function mallocUint8(n) {
+  n = bits.nextPow2(n)
+  var log_n = bits.log2(n)
+  var cache = UINT8[log_n]
+  if(cache.length > 0) {
+    return cache.pop()
+  }
+  return new Uint8Array(n)
+}
+
+exports.mallocUint16 = function mallocUint16(n) {
+  n = bits.nextPow2(n)
+  var log_n = bits.log2(n)
+  var cache = UINT16[log_n]
+  if(cache.length > 0) {
+    return cache.pop()
+  }
+  return new Uint16Array(n)
+}
+
+exports.mallocUint32 = function mallocUint32(n) {
+  n = bits.nextPow2(n)
+  var log_n = bits.log2(n)
+  var cache = UINT32[log_n]
+  if(cache.length > 0) {
+    return cache.pop()
+  }
+  return new Uint32Array(n)
+}
+
+exports.mallocInt8 = function mallocInt8(n) {
+  n = bits.nextPow2(n)
+  var log_n = bits.log2(n)
+  var cache = INT8[log_n]
+  if(cache.length > 0) {
+    return cache.pop()
+  }
+  return new Int8Array(n)
+}
+
+exports.mallocInt16 = function mallocInt16(n) {
+  n = bits.nextPow2(n)
+  var log_n = bits.log2(n)
+  var cache = INT16[log_n]
+  if(cache.length > 0) {
+    return cache.pop()
+  }
+  return new Int16Array(n)
+}
+
+exports.mallocInt32 = function mallocInt32(n) {
+  n = bits.nextPow2(n)
+  var log_n = bits.log2(n)
+  var cache = INT32[log_n]
+  if(cache.length > 0) {
+    return cache.pop()
+  }
+  return new Int32Array(n)
+}
+
+exports.mallocFloat32 = exports.mallocFloat = function mallocFloat(n) {
+  n = bits.nextPow2(n)
+  var log_n = bits.log2(n)
+  var cache = FLOAT[log_n]
+  if(cache.length > 0) {
+    return cache.pop()
+  }
+  return new Float32Array(n)
+}
+
+exports.mallocFloat64 = exports.mallocDouble = function mallocDouble(n) {
+  n = bits.nextPow2(n)
+  var log_n = bits.log2(n)
+  var cache = DOUBLE[log_n]
+  if(cache.length > 0) {
+    return cache.pop()
+  }
+  return new Float64Array(n)
+}
+
+exports.mallocArrayBuffer = function mallocArrayBuffer(n) {
+  n = bits.nextPow2(n)
+  var log_n = bits.log2(n)
+  var cache = DATA[log_n]
+  if(cache.length > 0) {
+    return cache.pop()
+  }
+  return new ArrayBuffer(n)
+}
+
+if(hasUint8C) {
+  exports.mallocUint8Clamped = function mallocUint8Clamped(n) {
+    n = bits.nextPow2(n)
+    var log_n = bits.log2(n)
+    var cache = UINT8C[log_n]
+    if(cache.length > 0) {
+      return cache.pop()
+    }
+    return new Uint8ClampedArray(n)
+  }
+} else {
+  exports.mallocUint8Clamped = exports.mallocUint8
+}
+
+exports.mallocBuffer = function mallocBuffer(n) {
+  n = bits.nextPow2(n)
+  var log_n = bits.log2(n)
+  var cache = BUFFER[log_n]
+  if(cache.length > 0) {
+    return cache.pop()
+  }
+  return new Buffer(n)
+}
+
+exports.clearCache = function clearCache() {
+  for(var i=0; i<32; ++i) {
+    UINT8[i].length = 0
+    UINT16[i].length = 0
+    UINT32[i].length = 0
+    INT8[i].length = 0
+    INT16[i].length = 0
+    INT32[i].length = 0
+    FLOAT[i].length = 0
+    DOUBLE[i].length = 0
+    DATA[i].length = 0
+    UINT8C[i].length = 0
+    BUFFER[i].length = 0
+  }
+}
+}).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
 },{"bit-twiddle":83,"buffer":116,"dup":84}],86:[function(require,module,exports){
 module.exports=require(36)
 },{}],87:[function(require,module,exports){
-module.exports=require(37)
+"use strict";
+
+var weakMap = typeof WeakMap === "undefined" ? require("weakmap") : WeakMap
+
+var WebGLEWStruct = new weakMap()
+
+function baseName(ext_name) {
+  return ext_name.replace(/^[A-Z]+_/, "")
+}
+
+function initWebGLEW(gl) {
+  var struct = WebGLEWStruct.get(gl)
+  if(struct) {
+    return struct
+  }
+  var extensions = {}
+  var supported = gl.getSupportedExtensions()
+  for(var i=0; i<supported.length; ++i) {
+    var extName = supported[i]
+    var ext = gl.getExtension(supported[i])
+    if(!ext) {
+      continue
+    }
+    while(true) {
+      extensions[extName] = ext
+      var base = baseName(extName)
+      if(base === extName) {
+        break
+      }
+      extName = base
+    }
+  }
+  WebGLEWStruct.set(gl, extensions)
+  return extensions
+}
+module.exports = initWebGLEW
 },{"weakmap":86}],88:[function(require,module,exports){
 module.exports=require(38)
 },{}],89:[function(require,module,exports){
-module.exports=require(39)
+"use strict"
+
+var bindAttribs = require("./do-bind.js")
+
+function VAOEmulated(gl) {
+  this.gl = gl
+  this._elements = null
+  this._attributes = null
+}
+
+VAOEmulated.prototype.bind = function() {
+  bindAttribs(this.gl, this._elements, this._attributes)
+}
+
+VAOEmulated.prototype.update = function(attributes, elements) {
+  this._elements = elements
+  this._attributes = attributes
+}
+
+VAOEmulated.prototype.dispose = function() { }
+VAOEmulated.prototype.unbind = function() { }
+
+VAOEmulated.prototype.draw = function(mode, count, offset) {
+  offset = offset || 0
+  var gl = this.gl
+  if(this._elements) {
+    gl.drawElements(mode, count, gl.UNSIGNED_SHORT, offset)
+  } else {
+    gl.drawArrays(mode, offset, count)
+  }
+}
+
+function createVAOEmulated(gl) {
+  return new VAOEmulated(gl)
+}
+
+module.exports = createVAOEmulated
 },{"./do-bind.js":88}],90:[function(require,module,exports){
-module.exports=require(40)
+"use strict"
+
+var bindAttribs = require("./do-bind.js")
+
+function VertexAttribute(location, dimension, a, b, c, d) {
+  this.location = location
+  this.dimension = dimension
+  this.a = a
+  this.b = b
+  this.c = c
+  this.d = d
+}
+
+VertexAttribute.prototype.bind = function(gl) {
+  switch(this.dimension) {
+    case 1:
+      gl.vertexAttrib1f(this.location, this.a)
+    break
+    case 2:
+      gl.vertexAttrib2f(this.location, this.a, this.b)
+    break
+    case 3:
+      gl.vertexAttrib3f(this.location, this.a, this.b, this.c)
+    break
+    case 4:
+      gl.vertexAttrib4f(this.location, this.a, this.b, this.c, this.d)
+    break
+  }
+}
+
+function VAONative(gl, ext, handle) {
+  this.gl = gl
+  this._ext = ext
+  this.handle = handle
+  this._attribs = []
+  this._useElements = false
+}
+
+VAONative.prototype.bind = function() {
+  this._ext.bindVertexArrayOES(this.handle)
+  for(var i=0; i<this._attribs.length; ++i) {
+    this._attribs[i].bind(this.gl)
+  }
+}
+
+VAONative.prototype.unbind = function() {
+  this._ext.bindVertexArrayOES(null)
+}
+
+VAONative.prototype.dispose = function() {
+  this._ext.deleteVertexArrayOES(this.handle)
+}
+
+VAONative.prototype.update = function(attributes, elements) {
+  this.bind()
+  bindAttribs(this.gl, elements, attributes)
+  this.unbind()
+  this._attribs.length = 0
+  if(attributes)
+  for(var i=0; i<attributes.length; ++i) {
+    var a = attributes[i]
+    if(typeof a === "number") {
+      this._attribs.push(new VertexAttribute(i, 1, a))
+    } else if(Array.isArray(a)) {
+      this._attribs.push(new VertexAttribute(i, a.length, a[0], a[1], a[2], a[3]))
+    }
+  }
+  this._useElements = !!elements
+}
+
+VAONative.prototype.draw = function(mode, count, offset) {
+  offset = offset || 0
+  var gl = this.gl
+  if(this._useElements) {
+    gl.drawElements(mode, count, gl.UNSIGNED_SHORT, offset)
+  } else {
+    gl.drawArrays(mode, offset, count)
+  }
+}
+
+function createVAONative(gl, ext) {
+  return new VAONative(gl, ext, ext.createVertexArrayOES())
+}
+
+module.exports = createVAONative
 },{"./do-bind.js":88}],91:[function(require,module,exports){
 module.exports=require(36)
 },{}],92:[function(require,module,exports){
-module.exports=require(37)
+module.exports=require(87)
 },{"weakmap":91}],93:[function(require,module,exports){
-module.exports=require(43)
+"use strict"
+
+var webglew = require("webglew")
+var createVAONative = require("./lib/vao-native.js")
+var createVAOEmulated = require("./lib/vao-emulated.js")
+
+function createVAO(gl, attributes, elements) {
+  var ext = webglew(gl).OES_vertex_array_object
+  var vao
+  if(ext) {
+    vao = createVAONative(gl, ext)
+  } else {
+    vao = createVAOEmulated(gl)
+  }
+  vao.update(attributes, elements)
+  return vao
+}
+
+module.exports = createVAO
 },{"./lib/vao-emulated.js":89,"./lib/vao-native.js":90,"webglew":92}],94:[function(require,module,exports){
 module.exports = programify
 
