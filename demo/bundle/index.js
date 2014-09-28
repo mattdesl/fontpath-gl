@@ -142,9 +142,7 @@ var ortho = mat4.create(),
     colorB = rgb('#143251')
 
 function render(gl, width, height) {
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
-
-    gl.clearColor(0,1,1,1)
+    gl.clearColor(0,0,0,1)
     gl.clear(gl.COLOR_BUFFER_BIT)
 
     //style background
@@ -200,7 +198,7 @@ function rgb(str) {
 module.exports = function(options) {
     createDemo(render, start.bind(this, options), { context: 'webgl' })
 }
-},{"../":4,"canvas-testbed":5,"color-string":10,"gl-mat4":58,"gl-vignette-background":72}],3:[function(require,module,exports){
+},{"../":4,"canvas-testbed":5,"color-string":10,"gl-mat4":58,"gl-vignette-background":73}],3:[function(require,module,exports){
 var TestFont = require('fontpath-test-fonts/lib/OpenSans-Regular.ttf');    
 
 require('./demo')({
@@ -211,13 +209,13 @@ require('./demo')({
     //the triangulation function, use the default poly2tri
     triangulate: require('../triangulate')
 })
-},{"../triangulate":114,"./demo":2,"fontpath-test-fonts/lib/OpenSans-Regular.ttf":21}],4:[function(require,module,exports){
+},{"../triangulate":118,"./demo":2,"fontpath-test-fonts/lib/OpenSans-Regular.ttf":21}],4:[function(require,module,exports){
 var Base = require('./base')
 
 Base.prototype.triangulateGlyph = require('./triangulate')
 
 module.exports = Base
-},{"./base":1,"./triangulate":114}],5:[function(require,module,exports){
+},{"./base":1,"./triangulate":118}],5:[function(require,module,exports){
 var domready = require('domready');
 require('raf.js');
 
@@ -1846,7 +1844,7 @@ var Shape = new Class({
 });
 
 module.exports = Shape;
-},{"interpolation":15,"klasse":16,"vecmath/lib/Vector2":113}],15:[function(require,module,exports){
+},{"interpolation":15,"klasse":16,"vecmath/lib/Vector2":117}],15:[function(require,module,exports){
 /** Utility function for linear interpolation. */
 module.exports.lerp = function(v0, v1, t) {
     return v0*(1-t)+v1*t;
@@ -4664,7 +4662,7 @@ function wrappedNDArrayCtor(data, shape, stride, offset) {
 
 module.exports = wrappedNDArrayCtor
 }).call(this,require("buffer").Buffer)
-},{"buffer":115,"iota-array":31}],31:[function(require,module,exports){
+},{"buffer":119,"iota-array":31}],31:[function(require,module,exports){
 "use strict"
 
 function iota(n) {
@@ -5149,7 +5147,7 @@ exports.clearCache = function clearCache() {
   }
 }
 }).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"bit-twiddle":32,"buffer":115,"dup":33}],35:[function(require,module,exports){
+},{"bit-twiddle":32,"buffer":119,"dup":33}],35:[function(require,module,exports){
 /* (The MIT License)
  *
  * Copyright (c) 2012 Brandon Benvie <http://bbenvie.com>
@@ -7194,17 +7192,59 @@ function transpose(out, a) {
     return out;
 };
 },{}],72:[function(require,module,exports){
+//should be split out...
+var create = require('gl-shader-core')
+var copy = require('deepcopy')
+
+var indices = [
+	'position',
+	'normal',
+	'color'
+]
+var tex = 'texcoord'
+
+function idx(name) {
+	var i = indices.indexOf(name)
+	if (i !== -1)
+		return i
+	if (name.indexOf(tex) === 0)
+		return parseInt(name.substring(tex.length), 10)|0 + 3
+	return undefined
+}
+
+function remap(attribute) {
+	attribute.location = idx(attribute.name)
+}
+
+module.exports = function(shader) {
+	return function(gl) {
+		var s = copy(shader)
+		s.attributes.forEach(remap)
+		return create(gl, s.vertex, s.fragment, s.uniforms, s.attributes)
+	}
+}
+},{"deepcopy":74,"gl-shader-core":100}],73:[function(require,module,exports){
 var glslify = require("glslify");
 var Quad = require("gl-quad");
-var defaultShader = require("glslify/adapter.js")("\n#define GLSLIFY 1\n\nattribute vec2 position;\nattribute vec2 uv;\nvarying vec2 vUv;\nvoid main() {\n  gl_Position = vec4(position.xy, 0.0, 1.0);\n  vUv = uv;\n}", "\n#define GLSLIFY 1\n\n#ifdef GL_ES\n\nprecision mediump float;\n#endif\n\nvarying vec2 vUv;\nhighp float a_x_random(vec2 co) {\n  highp float a = 12.9898;\n  highp float b = 78.233;\n  highp float c = 43758.5453;\n  highp float dt = dot(co.xy, vec2(a, b));\n  highp float sn = mod(dt, 3.14);\n  return fract(sin(sn) * c);\n}\nuniform float aspect;\nuniform vec2 scale;\nuniform vec2 offset;\nuniform bool coloredNoise;\nuniform vec2 smoothing;\nuniform float noiseAlpha;\nuniform vec3 color1;\nuniform vec3 color2;\nvec3 BlendOverlay(vec3 base, vec3 blend) {\n  return vec3(base.r < 0.5 ? (2.0 * base.r * blend.r) : (1.0 - 2.0 * (1.0 - base.r) * (1.0 - blend.r)), base.g < 0.5 ? (2.0 * base.g * blend.g) : (1.0 - 2.0 * (1.0 - base.g) * (1.0 - blend.g)), base.b < 0.5 ? (2.0 * base.b * blend.b) : (1.0 - 2.0 * (1.0 - base.b) * (1.0 - blend.b)));\n}\nvoid main() {\n  vec2 pos = vUv;\n  pos -= 0.5;\n  pos.x *= aspect;\n  pos /= scale;\n  pos -= offset;\n  float dist = length(pos);\n  dist = smoothstep(smoothing.x, smoothing.y, 1. - dist);\n  vec4 color = vec4(1.0);\n  color.rgb = mix(color2, color1, dist);\n  if(noiseAlpha > 0.0) {\n    vec3 noise = coloredNoise ? vec3(a_x_random(vUv * 1.5), a_x_random(vUv * 2.5), a_x_random(vUv)) : vec3(a_x_random(vUv));\n    color.rgb = mix(color.rgb, BlendOverlay(color.rgb, noise), noiseAlpha);\n  }\n  gl_FragColor = color;\n}", [{"name":"aspect","type":"float"},{"name":"scale","type":"vec2"},{"name":"offset","type":"vec2"},{"name":"coloredNoise","type":"bool"},{"name":"smoothing","type":"vec2"},{"name":"noiseAlpha","type":"float"},{"name":"color1","type":"vec3"},{"name":"color2","type":"vec3"}], [{"name":"position","type":"vec2"},{"name":"uv","type":"vec2"}]);
+var inherits = require("inherits");
+var defaultShader = require("./create-shader")(require("glslify/simple-adapter.js")("\n#define GLSLIFY 1\n\nattribute vec4 position;\nattribute vec2 uv;\nuniform mat4 projection;\nuniform mat4 view;\nuniform mat4 model;\nvarying vec2 vUv;\nvoid main() {\n  gl_Position = projection * view * model * position;\n  vUv = uv;\n}", "\n#define GLSLIFY 1\n\n#ifdef GL_ES\n\nprecision mediump float;\n#endif\n\nvarying vec2 vUv;\nhighp float a_x_random(vec2 co) {\n  highp float a = 12.9898;\n  highp float b = 78.233;\n  highp float c = 43758.5453;\n  highp float dt = dot(co.xy, vec2(a, b));\n  highp float sn = mod(dt, 3.14);\n  return fract(sin(sn) * c);\n}\nuniform float aspect;\nuniform vec2 scale;\nuniform vec2 offset;\nuniform bool coloredNoise;\nuniform vec2 smoothing;\nuniform float noiseAlpha;\nuniform vec3 color1;\nuniform vec3 color2;\nvec3 BlendOverlay(vec3 base, vec3 blend) {\n  return vec3(base.r < 0.5 ? (2.0 * base.r * blend.r) : (1.0 - 2.0 * (1.0 - base.r) * (1.0 - blend.r)), base.g < 0.5 ? (2.0 * base.g * blend.g) : (1.0 - 2.0 * (1.0 - base.g) * (1.0 - blend.g)), base.b < 0.5 ? (2.0 * base.b * blend.b) : (1.0 - 2.0 * (1.0 - base.b) * (1.0 - blend.b)));\n}\nvoid main() {\n  vec2 pos = vUv;\n  pos -= 0.5;\n  pos.x *= aspect;\n  pos /= scale;\n  pos -= offset;\n  float dist = length(pos);\n  dist = smoothstep(smoothing.x, smoothing.y, 1. - dist);\n  vec4 color = vec4(1.0);\n  color.rgb = mix(color2, color1, dist);\n  if(noiseAlpha > 0.0) {\n    vec3 noise = coloredNoise ? vec3(a_x_random(vUv * 1.5), a_x_random(vUv * 2.5), a_x_random(vUv)) : vec3(a_x_random(vUv));\n    color.rgb = mix(color.rgb, BlendOverlay(color.rgb, noise), noiseAlpha);\n  }\n  gl_FragColor = color;\n}", [{"name":"projection","type":"mat4"},{"name":"view","type":"mat4"},{"name":"model","type":"mat4"},{"name":"aspect","type":"float"},{"name":"scale","type":"vec2"},{"name":"offset","type":"vec2"},{"name":"coloredNoise","type":"bool"},{"name":"smoothing","type":"vec2"},{"name":"noiseAlpha","type":"float"},{"name":"color1","type":"vec3"},{"name":"color2","type":"vec3"}], [{"name":"position","type":"vec4"},{"name":"uv","type":"vec2"}]));
+var toIdentity = require("gl-mat4/identity");
+var mat4 = require("gl-mat4/create");
 
 function Vignette(gl, options) {
     if (!(this instanceof Vignette))
         return new Vignette(gl, options);
 
     Quad.call(this, gl);
+    options = options || {};
     this.gl = gl;
-    this.shader = defaultShader(gl);
+    var shader = options.shader;
+
+    if (!shader)
+        this.defaultShader = defaultShader(gl);
+
+    this.shader = shader || this.defaultShader;
+    var identity = toIdentity(mat4());
 
     this.style({
         aspect: gl.canvas.width / gl.canvas.height,
@@ -7214,14 +7254,17 @@ function Vignette(gl, options) {
         offset: [0, 0],
         color1: [1, 1, 1],
         color2: [0, 0, 0],
-        scale: [1, 1]
+        scale: [1, 1],
+        projection: identity,
+        view: identity,
+        model: identity
     });
 
     if (options)
         this.style(options);
 }
 
-Vignette.prototype = Object.create(Quad.prototype);
+inherits(Vignette, Quad);
 
 Vignette.prototype.style = function(options) {
     if (!options)
@@ -7242,16 +7285,192 @@ Vignette.prototype.draw = function() {
 };
 
 Vignette.prototype.dispose = function() {
-    if (this.shader) {
-        this.shader.dispose();
-        this.shader = null;
+    if (this.defaultShader) {
+        this.defaultShader.dispose();
+        this.defaultShader = undefined;
     }
 
     Quad.prototype.dispose.call(this);
 };
 
 module.exports = Vignette;
-},{"gl-quad":73,"glslify":94,"glslify/adapter.js":93}],73:[function(require,module,exports){
+},{"./create-shader":72,"gl-mat4/create":52,"gl-mat4/identity":57,"gl-quad":76,"glslify":101,"glslify/simple-adapter.js":102,"inherits":103}],74:[function(require,module,exports){
+/*!
+ * deepcopy.js Copyright(c) 2013 sasa+1
+ * https://github.com/sasaplus1/deepcopy.js
+ * Released under the MIT License.
+ */
+
+
+/** export deepcopy function. */
+module.exports = require('./lib/deepcopy');
+
+},{"./lib/deepcopy":75}],75:[function(require,module,exports){
+/*!
+ * @license deepcopy.js Copyright(c) 2013 sasa+1
+ * https://github.com/sasaplus1/deepcopy.js
+ * Released under the MIT License.
+ */
+
+(function() {
+
+  // fallback for util methods.
+  var util = (typeof module !== 'undefined') ? require('util') : (function() {
+
+    var to = Object.prototype.toString;
+
+    function isArray(value) {
+      return (
+          typeof value === 'object' &&
+          to.call(value) === '[object Array]');
+    }
+
+    function isDate(value) {
+      return (
+          typeof value === 'object' &&
+          to.call(value) === '[object Date]');
+    }
+
+    function isRegExp(value) {
+      return (
+          typeof value === 'object' &&
+          to.call(value) === '[object RegExp]');
+    }
+
+    return {
+      // use Array.isArray if implemented.
+      isArray: Array.isArray || isArray,
+      isDate: isDate,
+      isRegExp: isRegExp
+    };
+
+  }());
+
+  // fallback for Object.keys.
+  var getKeys = Object.keys || function(object) {
+    var keys = [],
+        key;
+
+    if (object === null || typeof object !== 'object') {
+      throw new TypeError('parameter type is not an Object');
+    }
+
+    for (key in object) {
+      object.hasOwnProperty(key) && keys.push(key);
+    }
+
+    return keys;
+  };
+
+  /**
+   * get element index from array.
+   *
+   * @private
+   * @param {Array} array target array.
+   * @param {*} searchElement find element.
+   * @throws {TypeError} when parameter array is not an array.
+   * @return {Number} return index of array. return -1 if element not found.
+   */
+  function indexOfArray(array, searchElement) {
+    var i, len;
+
+    if (!util.isArray(array)) {
+      throw new TypeError('parameter type is not an Array');
+    }
+
+    for (i = 0, len = array.length; i < len; ++i) {
+      if (array[i] === searchElement) {
+        return i;
+      }
+    }
+
+    return -1;
+  }
+
+  /**
+   * get deep copy of target.
+   *
+   * return deep copy if target is Date, RegExp or primitive types.
+   * return shallow copy if target is function.
+   *
+   * do recursive copy if target is Array or Object.
+   * also can copy if target has circular reference.
+   *
+   * @param {*} target target of deep copy.
+   * @return {*} deep copy value.
+   */
+  function deepcopy(target) {
+    var clone = (util.isArray(target)) ? [] : {},
+        visited = [target],
+        ref = [clone];
+
+    /**
+     * get deep copy of target.
+     *
+     * @private
+     * @param {*} target target of deep copy.
+     * @param {Object|Array} clone reference of deep copy value.
+     * @param {Object[]} visited copied references.
+     * @param {Object[]} ref reference of own.
+     * @return {*} deep copy value.
+     */
+    function deepcopy_(target, clone, visited, ref) {
+      var keys, i, len, key, value, index, object, reference;
+
+      // number, string, boolean, null, undefined and function.
+      if (target === null || typeof target !== 'object') {
+        return target;
+      }
+
+      if (util.isDate(target)) {
+        return new Date(Number(target));
+      }
+
+      if (util.isRegExp(target)) {
+        return new RegExp(
+            target.source,
+            String(target).slice(target.source.length + 2));
+      }
+
+      keys = getKeys(target);
+
+      for (i = 0, len = keys.length; i < len; ++i) {
+        key = keys[i];
+        value = target[key];
+
+        if (value !== null && typeof value === 'object') {
+          index = indexOfArray(visited, value);
+          if (index === -1) {
+            object = (util.isArray(value)) ? [] : {};
+            visited.push(value);
+            ref.push(object);
+          } else {
+            reference = ref[index];
+          }
+        }
+
+        // value is not reference type if object is undefined.
+        // not used object variable if target is not reference type.
+        clone[key] = reference || deepcopy_(value, object, visited, ref);
+        index = object = reference = null;
+      }
+
+      return clone;
+    }
+
+    return deepcopy_(target, clone, visited, ref);
+  }
+
+  // export function.
+  if (typeof module !== 'undefined') {
+    module.exports = deepcopy;
+  } else {
+    this.deepcopy = deepcopy;
+  }
+
+}());
+
+},{"util":125}],76:[function(require,module,exports){
 var createBuffer = require('gl-buffer')
 var createVAO = require('gl-vao')
 
@@ -7300,7 +7519,7 @@ Quad.prototype.draw = function(shader) {
     if (shader) 
         shader.bind()
     this.vao.bind()
-    this.vao.draw(gl.TRIANGLES, 6)
+    this.vao.draw(this.gl.TRIANGLES, 6)
     this.vao.unbind()
 }
 
@@ -7313,747 +7532,514 @@ Quad.prototype.dispose = function() {
 }
 
 module.exports = Quad
-},{"gl-buffer":74,"gl-vao":92}],74:[function(require,module,exports){
-"use strict"
-
-var pool = require("typedarray-pool")
-var ops = require("ndarray-ops")
-var ndarray = require("ndarray")
-var webglew = require("webglew")
-
-var SUPPORTED_TYPES = [
-  "uint8",
-  "uint8_clamped",
-  "uint16",
-  "uint32",
-  "int8",
-  "int16",
-  "int32",
-  "float32" ]
-
-function GLBuffer(gl, type, handle, length, usage) {
-  this.gl = gl
-  this.type = type
-  this.handle = handle
-  this.length = length
-  this.usage = usage
-}
-
-var proto = GLBuffer.prototype
-
-proto.bind = function() {
-  this.gl.bindBuffer(this.type, this.handle)
-}
-
-proto.dispose = function() {
-  this.gl.deleteBuffer(this.handle)
-}
-
-function updateTypeArray(gl, type, len, usage, data, offset) {
-  var dataLen = data.length * data.BYTES_PER_ELEMENT 
-  if(offset < 0) {
-    gl.bufferData(type, data, usage)
-    return dataLen
-  }
-  if(dataLen + offset > len) {
-    throw new Error("gl-buffer: If resizing buffer, must not specify offset")
-  }
-  gl.bufferSubData(type, offset, data)
-  return len
-}
-
-function makeScratchTypeArray(array, dtype) {
-  var res = pool.malloc(array.length, dtype)
-  var n = array.length
-  for(var i=0; i<n; ++i) {
-    res[i] = array[i]
-  }
-  return res
-}
-
-function isPacked(shape, stride) {
-  var n = 1
-  for(var i=stride.length-1; i>=0; --i) {
-    if(stride[i] !== n) {
-      return false
-    }
-    n *= shape[i]
-  }
-  return true
-}
-
-proto.update = function(array, offset) {
-  if(typeof offset !== "number") {
-    offset = -1
-  }
-  this.bind()
-  if(typeof array === "object" && typeof array.shape !== "undefined") { //ndarray
-    var dtype = array.dtype
-    if(SUPPORTED_TYPES.indexOf(dtype) < 0) {
-      dtype = "float32"
-    }
-    if(this.type === this.gl.ELEMENT_ARRAY_BUFFER) {
-      var wgl = webglew(gl)
-      var ext = wgl.OES_element_index_uint
-      if(ext && dtype !== "uint16") {
-        dtype = "uint32"
-      } else {
-        dtype = "uint16"
-      }
-    }
-    if(dtype === array.dtype && isPacked(array.shape, array.stride)) {
-      if(array.offset === 0 && array.data.length === array.shape[0]) {
-        this.length = updateTypeArray(this.gl, this.type, this.length, this.usage, array.data, offset)
-      } else {
-        this.length = updateTypeArray(this.gl, this.type, this.length, this.usage, array.data.subarray(array.offset, array.shape[0]), offset)
-      }
-    } else {
-      var tmp = pool.malloc(array.size, dtype)
-      var ndt = ndarray(tmp, array.shape)
-      ops.assign(ndt, array)
-      if(offset < 0) {
-        this.length = updateTypeArray(this.gl, this.type, this.length, this.usage, tmp, offset)  
-      } else {
-        this.length = updateTypeArray(this.gl, this.type, this.length, this.usage, tmp.subarray(0, array.size), offset)  
-      }
-      pool.free(tmp)
-    }
-  } else if(Array.isArray(array)) { //Vanilla array
-    var t
-    if(this.type === this.gl.ELEMENT_ARRAY_BUFFER) {
-      t = makeScratchTypeArray(array, "uint16")
-    } else {
-      t = makeScratchTypeArray(array, "float32")
-    }
-    if(offset < 0) {
-      this.length = updateTypeArray(this.gl, this.type, this.length, this.usage, t, offset)
-    } else {
-      this.length = updateTypeArray(this.gl, this.type, this.length, this.usage, t.subarray(0, array.length), offset)
-    }
-    pool.free(t)
-  } else if(typeof array === "object" && typeof array.length === "number") { //Typed array
-    this.length = updateTypeArray(this.gl, this.type, this.length, this.usage, array, offset)
-  } else if(typeof array === "number" || array === undefined) { //Number/default
-    if(offset >= 0) {
-      throw new Error("gl-buffer: Cannot specify offset when resizing buffer")
-    }
-    array = array | 0
-    if(array <= 0) {
-      array = 1
-    }
-    this.gl.bufferData(this.type, array|0, this.usage)
-    this.length = array
-  } else { //Error, case should not happen
-    throw new Error("gl-buffer: Invalid data type")
-  }
-}
-
-function createBuffer(gl, data, type, usage) {
-  webglew(gl)
-  type = type || gl.ARRAY_BUFFER
-  usage = usage || gl.DYNAMIC_DRAW
-  if(type !== gl.ARRAY_BUFFER && type !== gl.ELEMENT_ARRAY_BUFFER) {
-    throw new Error("gl-buffer: Invalid type for webgl buffer, must be either gl.ARRAY_BUFFER or gl.ELEMENT_ARRAY_BUFFER")
-  }
-  if(usage !== gl.DYNAMIC_DRAW && usage !== gl.STATIC_DRAW && usage !== gl.STREAM_DRAW) {
-    throw new Error("gl-buffer: Invalid usage for buffer, must be either gl.DYNAMIC_DRAW, gl.STATIC_DRAW or gl.STREAM_DRAW")
-  }
-  var handle = gl.createBuffer()
-  var result = new GLBuffer(gl, type, handle, 0, usage)
-  result.update(data)
-  return result
-}
-
-module.exports = createBuffer
-},{"ndarray":80,"ndarray-ops":75,"typedarray-pool":84,"webglew":86}],75:[function(require,module,exports){
+},{"gl-buffer":77,"gl-vao":95}],77:[function(require,module,exports){
+module.exports=require(24)
+},{"ndarray":83,"ndarray-ops":78,"typedarray-pool":87,"webglew":89}],78:[function(require,module,exports){
 module.exports=require(25)
-},{"cwise-compiler":76}],76:[function(require,module,exports){
+},{"cwise-compiler":79}],79:[function(require,module,exports){
 module.exports=require(26)
-},{"./lib/thunk.js":78}],77:[function(require,module,exports){
+},{"./lib/thunk.js":81}],80:[function(require,module,exports){
 module.exports=require(27)
-},{"uniq":79}],78:[function(require,module,exports){
+},{"uniq":82}],81:[function(require,module,exports){
 module.exports=require(28)
-},{"./compile.js":77}],79:[function(require,module,exports){
+},{"./compile.js":80}],82:[function(require,module,exports){
 module.exports=require(29)
-},{}],80:[function(require,module,exports){
-module.exports=require(30)
-},{"buffer":115,"iota-array":81}],81:[function(require,module,exports){
-module.exports=require(31)
-},{}],82:[function(require,module,exports){
-module.exports=require(32)
 },{}],83:[function(require,module,exports){
-module.exports=require(33)
-},{}],84:[function(require,module,exports){
-(function (global,Buffer){
-var bits = require("bit-twiddle")
-var dup = require("dup")
-if(!global.__TYPEDARRAY_POOL) {
-  global.__TYPEDARRAY_POOL = {
-      UINT8   : dup([32, 0])
-    , UINT16  : dup([32, 0])
-    , UINT32  : dup([32, 0])
-    , INT8    : dup([32, 0])
-    , INT16   : dup([32, 0])
-    , INT32   : dup([32, 0])
-    , FLOAT   : dup([32, 0])
-    , DOUBLE  : dup([32, 0])
-    , DATA    : dup([32, 0])
-    , UINT8C  : dup([32, 0])
-    , BUFFER  : dup([32, 0])
-  }
-}
-var hasUint8C = (typeof Uint8ClampedArray) !== "undefined"
-var POOL = global.__TYPEDARRAY_POOL
-if(!POOL.UINT8C) {
-  POOL.UINT8C = dup([32, 0])
-}
-if(!POOL.BUFFER) {
-  POOL.BUFFER = dup([32, 0])
-}
-var UINT8   = POOL.UINT8
-  , UINT16  = POOL.UINT16
-  , UINT32  = POOL.UINT32
-  , INT8    = POOL.INT8
-  , INT16   = POOL.INT16
-  , INT32   = POOL.INT32
-  , FLOAT   = POOL.FLOAT
-  , DOUBLE  = POOL.DOUBLE
-  , DATA    = POOL.DATA
-  , UINT8C  = POOL.UINT8C
-  , BUFFER  = POOL.BUFFER
-
-exports.free = function free(array) {
-  var n = array.length|0
-    , log_n = bits.log2(n)
-  if(Buffer.isBuffer(array)) {
-    BUFFER[log_n].push(array)
-  } else {
-    switch(Object.prototype.toString.call(array)) {
-      case "[object Uint8Array]":
-        UINT8[log_n].push(array)
-      break
-      case "[object Uint16Array]":
-        UINT16[log_n].push(array)
-      break
-      case "[object Uint32Array]":
-        UINT32[log_n].push(array)
-      break
-      case "[object Int8Array]":
-        INT8[log_n].push(array)
-      break
-      case "[object Int16Array]":
-        INT16[log_n].push(array)
-      break
-      case "[object Int32Array]":
-        INT32[log_n].push(array)
-      break
-      case "[object Uint8ClampedArray]":
-        UINT8C[log_n].push(array)
-      break
-      case "[object Float32Array]":
-        FLOAT[log_n].push(array)
-      break
-      case "[object Float64Array]":
-        DOUBLE[log_n].push(array)
-      break
-      case "[object ArrayBuffer]":
-        DATA[log_n].push(array)
-      break
-      default:
-        throw new Error("typedarray-pool: Unspecified array type")
-    }
-  }
-}
-
-exports.freeUint8 = function freeUint8(array) {
-  UINT8[bits.log2(array.length)].push(array)
-}
-
-exports.freeUint16 = function freeUint16(array) {
-  UINT16[bits.log2(array.length)].push(array)
-}
-
-exports.freeUint32 = function freeUint32(array) {
-  UINT32[bits.log2(array.length)].push(array)
-}
-
-exports.freeInt8 = function freeInt8(array) {
-  INT8[bits.log2(array.length)].push(array)
-}
-
-exports.freeInt16 = function freeInt16(array) {
-  INT16[bits.log2(array.length)].push(array)
-}
-
-exports.freeInt32 = function freeInt32(array) {
-  INT32[bits.log2(array.length)].push(array)
-}
-
-exports.freeFloat32 = exports.freeFloat = function freeFloat(array) {
-  FLOAT[bits.log2(array.length)].push(array)
-}
-
-exports.freeFloat64 = exports.freeDouble = function freeDouble(array) {
-  DOUBLE[bits.log2(array.length)].push(array)
-}
-
-exports.freeArrayBuffer = function freeArrayBuffer(array) {
-  DATA[bits.log2(array.length)].push(array)
-}
-
-if(hasUint8C) {
-  exports.freeUint8Clamped = function freeUint8Clamped(array) {
-    UINT8C[bits.log2(array.length)].push(array)
-  }
-} else {
-  exports.freeUint8Clamped = exports.freeUint8
-}
-
-exports.freeBuffer = function freeBuffer(array) {
-  BUFFER[bits.log2(array.length)].push(array)
-}
-
-exports.malloc = function malloc(n, dtype) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  if(dtype === undefined || dtype === "arraybuffer") {
-    var d = DATA[log_n]
-    if(d.length > 0) {
-      var r = d[d.length-1]
-      d.pop()
-      return r
-    }
-    return new ArrayBuffer(n)
-  } else {
-    switch(dtype) {
-      case "uint8":
-        var u8 = UINT8[log_n]
-        if(u8.length > 0) {
-          return u8.pop()
-        }
-        return new Uint8Array(n)
-      break
-
-      case "uint16":
-        var u16 = UINT16[log_n]
-        if(u16.length > 0) {
-          return u16.pop()
-        }
-        return new Uint16Array(n)
-      break
-
-      case "uint32":
-        var u32 = UINT32[log_n]
-        if(u32.length > 0) {
-          return u32.pop()
-        }
-        return new Uint32Array(n)
-      break
-
-      case "int8":
-        var i8 = INT8[log_n]
-        if(i8.length > 0) {
-          return i8.pop()
-        }
-        return new Int8Array(n)
-      break
-
-      case "int16":
-        var i16 = INT16[log_n]
-        if(i16.length > 0) {
-          return i16.pop()
-        }
-        return new Int16Array(n)
-      break
-
-      case "int32":
-        var i32 = INT32[log_n]
-        if(i32.length > 0) {
-          return i32.pop()
-        }
-        return new Int32Array(n)
-      break
-
-      case "float":
-      case "float32":
-        var f = FLOAT[log_n]
-        if(f.length > 0) {
-          return f.pop()
-        }
-        return new Float32Array(n)
-      break
-
-      case "double":
-      case "float64":
-        var dd = DOUBLE[log_n]
-        if(dd.length > 0) {
-          return dd.pop()
-        }
-        return new Float64Array(n)
-      break
-
-      case "uint8_clamped":
-        if(hasUint8C) {
-          var u8c = UINT8C[log_n]
-          if(u8c.length > 0) {
-            return u8c.pop()
-          }
-          return new Uint8ClampedArray(n)
-        } else {
-          var u8 = UINT8[log_n]
-          if(u8.length > 0) {
-            return u8.pop()
-          }
-          return new Uint8Array(n)
-        }
-      break
-
-      case "buffer":
-        var buf = BUFFER[log_n]
-        if(buf.length > 0) {
-          return buf.pop()
-        }
-        return new Buffer(n)
-      break
-
-      default:
-        return null
-    }
-  }
-  return null
-}
-
-exports.mallocUint8 = function mallocUint8(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = UINT8[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new Uint8Array(n)
-}
-
-exports.mallocUint16 = function mallocUint16(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = UINT16[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new Uint16Array(n)
-}
-
-exports.mallocUint32 = function mallocUint32(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = UINT32[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new Uint32Array(n)
-}
-
-exports.mallocInt8 = function mallocInt8(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = INT8[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new Int8Array(n)
-}
-
-exports.mallocInt16 = function mallocInt16(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = INT16[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new Int16Array(n)
-}
-
-exports.mallocInt32 = function mallocInt32(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = INT32[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new Int32Array(n)
-}
-
-exports.mallocFloat32 = exports.mallocFloat = function mallocFloat(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = FLOAT[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new Float32Array(n)
-}
-
-exports.mallocFloat64 = exports.mallocDouble = function mallocDouble(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = DOUBLE[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new Float64Array(n)
-}
-
-exports.mallocArrayBuffer = function mallocArrayBuffer(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = DATA[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new ArrayBuffer(n)
-}
-
-if(hasUint8C) {
-  exports.mallocUint8Clamped = function mallocUint8Clamped(n) {
-    n = bits.nextPow2(n)
-    var log_n = bits.log2(n)
-    var cache = UINT8C[log_n]
-    if(cache.length > 0) {
-      return cache.pop()
-    }
-    return new Uint8ClampedArray(n)
-  }
-} else {
-  exports.mallocUint8Clamped = exports.mallocUint8
-}
-
-exports.mallocBuffer = function mallocBuffer(n) {
-  n = bits.nextPow2(n)
-  var log_n = bits.log2(n)
-  var cache = BUFFER[log_n]
-  if(cache.length > 0) {
-    return cache.pop()
-  }
-  return new Buffer(n)
-}
-
-exports.clearCache = function clearCache() {
-  for(var i=0; i<32; ++i) {
-    UINT8[i].length = 0
-    UINT16[i].length = 0
-    UINT32[i].length = 0
-    INT8[i].length = 0
-    INT16[i].length = 0
-    INT32[i].length = 0
-    FLOAT[i].length = 0
-    DOUBLE[i].length = 0
-    DATA[i].length = 0
-    UINT8C[i].length = 0
-    BUFFER[i].length = 0
-  }
-}
-}).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"bit-twiddle":82,"buffer":115,"dup":83}],85:[function(require,module,exports){
-module.exports=require(35)
+module.exports=require(30)
+},{"buffer":119,"iota-array":84}],84:[function(require,module,exports){
+module.exports=require(31)
+},{}],85:[function(require,module,exports){
+module.exports=require(32)
 },{}],86:[function(require,module,exports){
-"use strict";
-
-var weakMap = typeof WeakMap === "undefined" ? require("weakmap") : WeakMap
-
-var WebGLEWStruct = new weakMap()
-
-function baseName(ext_name) {
-  return ext_name.replace(/^[A-Z]+_/, "")
-}
-
-function initWebGLEW(gl) {
-  var struct = WebGLEWStruct.get(gl)
-  if(struct) {
-    return struct
-  }
-  var extensions = {}
-  var supported = gl.getSupportedExtensions()
-  for(var i=0; i<supported.length; ++i) {
-    var extName = supported[i]
-    var ext = gl.getExtension(supported[i])
-    if(!ext) {
-      continue
-    }
-    while(true) {
-      extensions[extName] = ext
-      var base = baseName(extName)
-      if(base === extName) {
-        break
-      }
-      extName = base
-    }
-  }
-  WebGLEWStruct.set(gl, extensions)
-  return extensions
-}
-module.exports = initWebGLEW
-},{"weakmap":85}],87:[function(require,module,exports){
-module.exports=require(37)
-},{}],88:[function(require,module,exports){
-"use strict"
-
-var bindAttribs = require("./do-bind.js")
-
-function VAOEmulated(gl) {
-  this.gl = gl
-  this._elements = null
-  this._attributes = null
-}
-
-VAOEmulated.prototype.bind = function() {
-  bindAttribs(this.gl, this._elements, this._attributes)
-}
-
-VAOEmulated.prototype.update = function(attributes, elements) {
-  this._elements = elements
-  this._attributes = attributes
-}
-
-VAOEmulated.prototype.dispose = function() { }
-VAOEmulated.prototype.unbind = function() { }
-
-VAOEmulated.prototype.draw = function(mode, count, offset) {
-  offset = offset || 0
-  var gl = this.gl
-  if(this._elements) {
-    gl.drawElements(mode, count, gl.UNSIGNED_SHORT, offset)
-  } else {
-    gl.drawArrays(mode, offset, count)
-  }
-}
-
-function createVAOEmulated(gl) {
-  return new VAOEmulated(gl)
-}
-
-module.exports = createVAOEmulated
-},{"./do-bind.js":87}],89:[function(require,module,exports){
-"use strict"
-
-var bindAttribs = require("./do-bind.js")
-
-function VertexAttribute(location, dimension, a, b, c, d) {
-  this.location = location
-  this.dimension = dimension
-  this.a = a
-  this.b = b
-  this.c = c
-  this.d = d
-}
-
-VertexAttribute.prototype.bind = function(gl) {
-  switch(this.dimension) {
-    case 1:
-      gl.vertexAttrib1f(this.location, this.a)
-    break
-    case 2:
-      gl.vertexAttrib2f(this.location, this.a, this.b)
-    break
-    case 3:
-      gl.vertexAttrib3f(this.location, this.a, this.b, this.c)
-    break
-    case 4:
-      gl.vertexAttrib4f(this.location, this.a, this.b, this.c, this.d)
-    break
-  }
-}
-
-function VAONative(gl, ext, handle) {
-  this.gl = gl
-  this._ext = ext
-  this.handle = handle
-  this._attribs = []
-  this._useElements = false
-}
-
-VAONative.prototype.bind = function() {
-  this._ext.bindVertexArrayOES(this.handle)
-  for(var i=0; i<this._attribs.length; ++i) {
-    this._attribs[i].bind(this.gl)
-  }
-}
-
-VAONative.prototype.unbind = function() {
-  this._ext.bindVertexArrayOES(null)
-}
-
-VAONative.prototype.dispose = function() {
-  this._ext.deleteVertexArrayOES(this.handle)
-}
-
-VAONative.prototype.update = function(attributes, elements) {
-  this.bind()
-  bindAttribs(this.gl, elements, attributes)
-  this.unbind()
-  this._attribs.length = 0
-  if(attributes)
-  for(var i=0; i<attributes.length; ++i) {
-    var a = attributes[i]
-    if(typeof a === "number") {
-      this._attribs.push(new VertexAttribute(i, 1, a))
-    } else if(Array.isArray(a)) {
-      this._attribs.push(new VertexAttribute(i, a.length, a[0], a[1], a[2], a[3]))
-    }
-  }
-  this._useElements = !!elements
-}
-
-VAONative.prototype.draw = function(mode, count, offset) {
-  offset = offset || 0
-  var gl = this.gl
-  if(this._useElements) {
-    gl.drawElements(mode, count, gl.UNSIGNED_SHORT, offset)
-  } else {
-    gl.drawArrays(mode, offset, count)
-  }
-}
-
-function createVAONative(gl, ext) {
-  return new VAONative(gl, ext, ext.createVertexArrayOES())
-}
-
-module.exports = createVAONative
-},{"./do-bind.js":87}],90:[function(require,module,exports){
+module.exports=require(33)
+},{}],87:[function(require,module,exports){
+module.exports=require(34)
+},{"bit-twiddle":85,"buffer":119,"dup":86}],88:[function(require,module,exports){
 module.exports=require(35)
+},{}],89:[function(require,module,exports){
+module.exports=require(36)
+},{"weakmap":88}],90:[function(require,module,exports){
+module.exports=require(37)
 },{}],91:[function(require,module,exports){
-module.exports=require(86)
-},{"weakmap":90}],92:[function(require,module,exports){
-"use strict"
+module.exports=require(38)
+},{"./do-bind.js":90}],92:[function(require,module,exports){
+module.exports=require(39)
+},{"./do-bind.js":90}],93:[function(require,module,exports){
+module.exports=require(35)
+},{}],94:[function(require,module,exports){
+module.exports=require(36)
+},{"weakmap":93}],95:[function(require,module,exports){
+module.exports=require(42)
+},{"./lib/vao-emulated.js":91,"./lib/vao-native.js":92,"webglew":94}],96:[function(require,module,exports){
+'use strict'
 
-var webglew = require("webglew")
-var createVAONative = require("./lib/vao-native.js")
-var createVAOEmulated = require("./lib/vao-emulated.js")
+module.exports = createAttributeWrapper
 
-function createVAO(gl, attributes, elements) {
-  var ext = webglew(gl).OES_vertex_array_object
-  var vao
-  if(ext) {
-    vao = createVAONative(gl, ext)
-  } else {
-    vao = createVAOEmulated(gl)
-  }
-  vao.update(attributes, elements)
-  return vao
+//Shader attribute class
+function ShaderAttribute(gl, program, location, dimension, name, constFunc, relink) {
+  this._gl = gl
+  this._program = program
+  this._location = location
+  this._dimension = dimension
+  this._name = name
+  this._constFunc = constFunc
+  this._relink = relink
 }
 
-module.exports = createVAO
-},{"./lib/vao-emulated.js":88,"./lib/vao-native.js":89,"webglew":91}],93:[function(require,module,exports){
-module.exports = programify
+var proto = ShaderAttribute.prototype
 
-var shader = require('gl-shader-core')
+proto.pointer = function setAttribPointer(type, normalized, stride, offset) {
+  var gl = this._gl
+  gl.vertexAttribPointer(this._location, this._dimension, type||gl.FLOAT, !!normalized, stride||0, offset||0)
+  this._gl.enableVertexAttribArray(this._location)
+}
 
-function programify(vertex, fragment, uniforms, attributes) {
-  return function(gl) {
-    return shader(gl, vertex, fragment, uniforms, attributes)
+Object.defineProperty(proto, 'location', {
+  get: function() {
+    return this._location
+  }
+  , set: function(v) {
+    if(v !== this._location) {
+      this._location = v
+      this._gl.bindAttribLocation(this._program, v, this._name)
+      this._gl.linkProgram(this._program)
+      this._relink()
+    }
+  }
+})
+
+
+//Adds a vector attribute to obj
+function addVectorAttribute(gl, program, location, dimension, obj, name, doLink) {
+  var constFuncArgs = [ 'gl', 'v' ]
+  var varNames = []
+  for(var i=0; i<dimension; ++i) {
+    constFuncArgs.push('x'+i)
+    varNames.push('x'+i)
+  }
+  constFuncArgs.push([
+    'if(x0.length===void 0){return gl.vertexAttrib', dimension, 'f(v,', varNames.join(), ')}else{return gl.vertexAttrib', dimension, 'fv(v,x0)}'
+  ].join(''))
+  var constFunc = Function.apply(undefined, constFuncArgs)
+  var attr = new ShaderAttribute(gl, program, location, dimension, name, constFunc, doLink)
+  Object.defineProperty(obj, name, {
+    set: function(x) {
+      gl.disableVertexAttribArray(attr._location)
+      constFunc(gl, attr._location, x)
+      return x
+    }
+    , get: function() {
+      return attr
+    }
+    , enumerable: true
+  })
+}
+
+//Create shims for attributes
+function createAttributeWrapper(gl, program, attributes, doLink) {
+  var obj = {}
+  for(var i=0, n=attributes.length; i<n; ++i) {
+    var a = attributes[i]
+    var name = a.name
+    var type = a.type
+    var location = gl.getAttribLocation(program, name)
+    
+    switch(type) {
+      case 'bool':
+      case 'int':
+      case 'float':
+        addVectorAttribute(gl, program, location, 1, obj, name, doLink)
+      break
+      
+      default:
+        if(type.indexOf('vec') >= 0) {
+          var d = type.charCodeAt(type.length-1) - 48
+          if(d < 2 || d > 4) {
+            throw new Error('gl-shader: Invalid data type for attribute ' + name + ': ' + type)
+          }
+          addVectorAttribute(gl, program, location, d, obj, name, doLink)
+        } else {
+          throw new Error('gl-shader: Unknown data type for attribute ' + name + ': ' + type)
+        }
+      break
+    }
+  }
+  return obj
+}
+},{}],97:[function(require,module,exports){
+'use strict'
+
+var dup = require('dup')
+var coallesceUniforms = require('./reflect')
+
+module.exports = createUniformWrapper
+
+//Binds a function and returns a value
+function identity(x) {
+  var c = new Function('y', 'return function(){return y}')
+  return c(x)
+}
+
+//Create shims for uniforms
+function createUniformWrapper(gl, program, uniforms, locations) {
+
+  function makeGetter(index) {
+    var proc = new Function('gl', 'prog', 'locations', 
+      'return function(){return gl.getUniform(prog,locations[' + index + '])}') 
+    return proc(gl, program, locations)
+  }
+
+  function makePropSetter(path, index, type) {
+    switch(type) {
+      case 'bool':
+      case 'int':
+      case 'sampler2D':
+      case 'samplerCube':
+        return 'gl.uniform1i(locations[' + index + '],obj' + path + ')'
+      case 'float':
+        return 'gl.uniform1f(locations[' + index + '],obj' + path + ')'
+      default:
+        var vidx = type.indexOf('vec')
+        if(0 <= vidx && vidx <= 1 && type.length === 4 + vidx) {
+          var d = type.charCodeAt(type.length-1) - 48
+          if(d < 2 || d > 4) {
+            throw new Error('gl-shader: Invalid data type')
+          }
+          switch(type.charAt(0)) {
+            case 'b':
+            case 'i':
+              return 'gl.uniform' + d + 'iv(locations[' + index + '],obj' + path + ')'
+            case 'v':
+              return 'gl.uniform' + d + 'fv(locations[' + index + '],obj' + path + ')'
+            default:
+              throw new Error('gl-shader: Unrecognized data type for vector ' + name + ': ' + type)
+          }
+        } else if(type.indexOf('mat') === 0 && type.length === 4) {
+          var d = type.charCodeAt(type.length-1) - 48
+          if(d < 2 || d > 4) {
+            throw new Error('gl-shader: Invalid uniform dimension type for matrix ' + name + ': ' + type)
+          }
+          return 'gl.uniformMatrix' + d + 'fv(locations[' + index + '],false,obj' + path + ')'
+        } else {
+          throw new Error('gl-shader: Unknown uniform data type for ' + name + ': ' + type)
+        }
+      break
+    }
+  }
+
+  function enumerateIndices(prefix, type) {
+    if(typeof type !== 'object') {
+      return [ [prefix, type] ]
+    }
+    var indices = []
+    for(var id in type) {
+      var prop = type[id]
+      var tprefix = prefix
+      if(parseInt(id) + '' === id) {
+        tprefix += '[' + id + ']'
+      } else {
+        tprefix += '.' + id
+      }
+      if(typeof prop === 'object') {
+        indices.push.apply(indices, enumerateIndices(tprefix, prop))
+      } else {
+        indices.push([tprefix, prop])
+      }
+    }
+    return indices
+  }
+
+  function makeSetter(type) {
+    var code = [ 'return function updateProperty(obj){' ]
+    var indices = enumerateIndices('', type)
+    for(var i=0; i<indices.length; ++i) {
+      var item = indices[i]
+      var path = item[0]
+      var idx  = item[1]
+      if(locations[idx]) {
+        code.push(makePropSetter(path, idx, uniforms[idx].type))
+      }
+    }
+    code.push('return obj}')
+    var proc = new Function('gl', 'prog', 'locations', code.join('\n'))
+    return proc(gl, program, locations)
+  }
+
+  function defaultValue(type) {
+    switch(type) {
+      case 'bool':
+        return false
+      case 'int':
+      case 'sampler2D':
+      case 'samplerCube':
+        return 0
+      case 'float':
+        return 0.0
+      default:
+        var vidx = type.indexOf('vec')
+        if(0 <= vidx && vidx <= 1 && type.length === 4 + vidx) {
+          var d = type.charCodeAt(type.length-1) - 48
+          if(d < 2 || d > 4) {
+            throw new Error('gl-shader: Invalid data type')
+          }
+          if(type.charAt(0) === 'b') {
+            return dup(d, false)
+          }
+          return dup(d)
+        } else if(type.indexOf('mat') === 0 && type.length === 4) {
+          var d = type.charCodeAt(type.length-1) - 48
+          if(d < 2 || d > 4) {
+            throw new Error('gl-shader: Invalid uniform dimension type for matrix ' + name + ': ' + type)
+          }
+          return dup([d,d])
+        } else {
+          throw new Error('gl-shader: Unknown uniform data type for ' + name + ': ' + type)
+        }
+      break
+    }
+  }
+
+  function storeProperty(obj, prop, type) {
+    if(typeof type === 'object') {
+      var child = processObject(type)
+      Object.defineProperty(obj, prop, {
+        get: identity(child),
+        set: makeSetter(type),
+        enumerable: true,
+        configurable: false
+      })
+    } else {
+      if(locations[type]) {
+        Object.defineProperty(obj, prop, {
+          get: makeGetter(type),
+          set: makeSetter(type),
+          enumerable: true,
+          configurable: false
+        })
+      } else {
+        obj[prop] = defaultValue(uniforms[type].type)
+      }
+    }
+  }
+
+  function processObject(obj) {
+    var result
+    if(Array.isArray(obj)) {
+      result = new Array(obj.length)
+      for(var i=0; i<obj.length; ++i) {
+        storeProperty(result, i, obj[i])
+      }
+    } else {
+      result = {}
+      for(var id in obj) {
+        storeProperty(result, id, obj[id])
+      }
+    }
+    return result
+  }
+
+  //Return data
+  var coallesced = coallesceUniforms(uniforms, true)
+  return {
+    get: identity(processObject(coallesced)),
+    set: makeSetter(coallesced),
+    enumerable: true,
+    configurable: true
   }
 }
 
-},{"gl-shader-core":99}],94:[function(require,module,exports){
+},{"./reflect":98,"dup":99}],98:[function(require,module,exports){
+'use strict'
+
+module.exports = makeReflectTypes
+
+//Construct type info for reflection.
+//
+// This iterates over the flattened list of uniform type values and smashes them into a JSON object.
+//
+// The leaves of the resulting object are either indices or type strings representing primitive glslify types
+function makeReflectTypes(uniforms, useIndex) {
+  var obj = {}
+  for(var i=0; i<uniforms.length; ++i) {
+    var n = uniforms[i].name
+    var parts = n.split(".")
+    var o = obj
+    for(var j=0; j<parts.length; ++j) {
+      var x = parts[j].split("[")
+      if(x.length > 1) {
+        if(!(x[0] in o)) {
+          o[x[0]] = []
+        }
+        o = o[x[0]]
+        for(var k=1; k<x.length; ++k) {
+          var y = parseInt(x[k])
+          if(k<x.length-1 || j<parts.length-1) {
+            if(!(y in o)) {
+              if(k < x.length-1) {
+                o[y] = []
+              } else {
+                o[y] = {}
+              }
+            }
+            o = o[y]
+          } else {
+            if(useIndex) {
+              o[y] = i
+            } else {
+              o[y] = uniforms[i].type
+            }
+          }
+        }
+      } else if(j < parts.length-1) {
+        if(!(x[0] in o)) {
+          o[x[0]] = {}
+        }
+        o = o[x[0]]
+      } else {
+        if(useIndex) {
+          o[x[0]] = i
+        } else {
+          o[x[0]] = uniforms[i].type
+        }
+      }
+    }
+  }
+  return obj
+}
+},{}],99:[function(require,module,exports){
+module.exports=require(33)
+},{}],100:[function(require,module,exports){
+'use strict'
+
+var createUniformWrapper = require('./lib/create-uniforms')
+var createAttributeWrapper = require('./lib/create-attributes')
+var makeReflect = require('./lib/reflect')
+
+//Shader object
+function Shader(gl, prog, vertShader, fragShader) {
+  this.gl = gl
+  this.handle = prog
+  this.attributes = null
+  this.uniforms = null
+  this.types = null
+  this.vertexShader = vertShader
+  this.fragmentShader = fragShader
+}
+
+//Binds the shader
+Shader.prototype.bind = function() {
+  this.gl.useProgram(this.handle)
+}
+
+//Destroy shader, release resources
+Shader.prototype.dispose = function() {
+  var gl = this.gl
+  gl.deleteShader(this.vertexShader)
+  gl.deleteShader(this.fragmentShader)
+  gl.deleteProgram(this.handle)
+}
+
+Shader.prototype.updateExports = function(uniforms, attributes) {
+  var locations = new Array(uniforms.length)
+  var program = this.handle
+  var gl = this.gl
+
+  var doLink = relinkUniforms.bind(void 0,
+    gl,
+    program,
+    locations,
+    uniforms
+  )
+  doLink()
+
+  this.types = {
+    uniforms: makeReflect(uniforms),
+    attributes: makeReflect(attributes)
+  }
+
+  this.attributes = createAttributeWrapper(
+    gl,
+    program,
+    attributes,
+    doLink
+  )
+
+  Object.defineProperty(this, 'uniforms', createUniformWrapper(
+    gl,
+    program,
+    uniforms,
+    locations
+  ))
+}
+
+//Relinks all uniforms
+function relinkUniforms(gl, program, locations, uniforms) {
+  for(var i=0; i<uniforms.length; ++i) {
+    locations[i] = gl.getUniformLocation(program, uniforms[i].name)
+  }
+}
+
+//Compiles and links a shader program with the given attribute and vertex list
+function createShader(
+    gl
+  , vertSource
+  , fragSource
+  , uniforms
+  , attributes) {
+  
+  //Compile vertex shader
+  var vertShader = gl.createShader(gl.VERTEX_SHADER)
+  gl.shaderSource(vertShader, vertSource)
+  gl.compileShader(vertShader)
+  if(!gl.getShaderParameter(vertShader, gl.COMPILE_STATUS)) {
+    var errLog = gl.getShaderInfoLog(vertShader)
+    console.error('gl-shader: Error compling vertex shader:', errLog)
+    throw new Error('gl-shader: Error compiling vertex shader:' + errLog)
+  }
+  
+  //Compile fragment shader
+  var fragShader = gl.createShader(gl.FRAGMENT_SHADER)
+  gl.shaderSource(fragShader, fragSource)
+  gl.compileShader(fragShader)
+  if(!gl.getShaderParameter(fragShader, gl.COMPILE_STATUS)) {
+    var errLog = gl.getShaderInfoLog(fragShader)
+    console.error('gl-shader: Error compiling fragment shader:', errLog)
+    throw new Error('gl-shader: Error compiling fragment shader:' + errLog)
+  }
+  
+  //Link program
+  var program = gl.createProgram()
+  gl.attachShader(program, fragShader)
+  gl.attachShader(program, vertShader)
+
+  //Optional default attriubte locations
+  attributes.forEach(function(a) {
+    if (typeof a.location === 'number') 
+      gl.bindAttribLocation(program, a.location, a.name)
+  })
+
+  gl.linkProgram(program)
+  if(!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    var errLog = gl.getProgramInfoLog(program)
+    console.error('gl-shader: Error linking shader program:', errLog)
+    throw new Error('gl-shader: Error linking shader program:' + errLog)
+  }
+  
+  //Return final linked shader object
+  var shader = new Shader(
+    gl,
+    program,
+    vertShader,
+    fragShader
+  )
+  shader.updateExports(uniforms, attributes)
+
+  return shader
+}
+
+module.exports = createShader
+
+},{"./lib/create-attributes":96,"./lib/create-uniforms":97,"./lib/reflect":98}],101:[function(require,module,exports){
 module.exports = noop
 
 function noop() {
@@ -8063,17 +8049,44 @@ function noop() {
   )
 }
 
-},{}],95:[function(require,module,exports){
-module.exports=require(44)
-},{}],96:[function(require,module,exports){
-module.exports=require(45)
-},{"./reflect.js":97,"dup":98}],97:[function(require,module,exports){
-module.exports=require(46)
-},{}],98:[function(require,module,exports){
-module.exports=require(33)
-},{}],99:[function(require,module,exports){
-module.exports=require(48)
-},{"./lib/create-attributes.js":95,"./lib/create-uniforms.js":96,"./lib/reflect.js":97}],100:[function(require,module,exports){
+},{}],102:[function(require,module,exports){
+module.exports = programify
+
+function programify(vertex, fragment, uniforms, attributes) {
+  return {
+    vertex: vertex, 
+    fragment: fragment,
+    uniforms: uniforms, 
+    attributes: attributes
+  };
+}
+
+},{}],103:[function(require,module,exports){
+if (typeof Object.create === 'function') {
+  // implementation from standard node.js 'util' module
+  module.exports = function inherits(ctor, superCtor) {
+    ctor.super_ = superCtor
+    ctor.prototype = Object.create(superCtor.prototype, {
+      constructor: {
+        value: ctor,
+        enumerable: false,
+        writable: true,
+        configurable: true
+      }
+    });
+  };
+} else {
+  // old school shim for old browsers
+  module.exports = function inherits(ctor, superCtor) {
+    ctor.super_ = superCtor
+    var TempCtor = function () {}
+    TempCtor.prototype = superCtor.prototype
+    ctor.prototype = new TempCtor()
+    ctor.prototype.constructor = ctor
+  }
+}
+
+},{}],104:[function(require,module,exports){
 var poly2tri = require('poly2tri');
 var util = require('point-util');
 
@@ -8196,7 +8209,7 @@ module.exports = function (shapes, steinerPoints) {
     }
     return allTris;
 };
-},{"point-util":101,"poly2tri":107}],101:[function(require,module,exports){
+},{"point-util":105,"poly2tri":111}],105:[function(require,module,exports){
 module.exports.isClockwise = function(points) {
     var sum = 0;
     for (var i=0; i<points.length; i++) {
@@ -8265,9 +8278,9 @@ module.exports.getBounds = function(contour) {
         maxY: maxY
     };
 }
-},{}],102:[function(require,module,exports){
+},{}],106:[function(require,module,exports){
 module.exports={"version": "1.3.5"}
-},{}],103:[function(require,module,exports){
+},{}],107:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -8448,7 +8461,7 @@ module.exports = AdvancingFront;
 module.exports.Node = Node;
 
 
-},{}],104:[function(require,module,exports){
+},{}],108:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -8483,7 +8496,7 @@ module.exports = assert;
 
 
 
-},{}],105:[function(require,module,exports){
+},{}],109:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -8760,7 +8773,7 @@ Point.dot = function(a, b) {
 
 module.exports = Point;
 
-},{"./xy":112}],106:[function(require,module,exports){
+},{"./xy":116}],110:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -8814,7 +8827,7 @@ PointError.prototype.constructor = PointError;
 
 module.exports = PointError;
 
-},{"./xy":112}],107:[function(require,module,exports){
+},{"./xy":116}],111:[function(require,module,exports){
 (function (global){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
@@ -8934,7 +8947,7 @@ exports.triangulate = sweep.triangulate;
 exports.sweep = {Triangulate: sweep.triangulate};
 
 }).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../dist/version.json":102,"./point":105,"./pointerror":106,"./sweep":108,"./sweepcontext":109,"./triangle":110}],108:[function(require,module,exports){
+},{"../dist/version.json":106,"./point":109,"./pointerror":110,"./sweep":112,"./sweepcontext":113,"./triangle":114}],112:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -9770,7 +9783,7 @@ function flipScanEdgeEvent(tcx, ep, eq, flip_triangle, t, p) {
 
 exports.triangulate = triangulate;
 
-},{"./advancingfront":103,"./assert":104,"./pointerror":106,"./triangle":110,"./utils":111}],109:[function(require,module,exports){
+},{"./advancingfront":107,"./assert":108,"./pointerror":110,"./triangle":114,"./utils":115}],113:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -10313,7 +10326,7 @@ SweepContext.prototype.meshClean = function(triangle) {
 
 module.exports = SweepContext;
 
-},{"./advancingfront":103,"./point":105,"./pointerror":106,"./sweep":108,"./triangle":110}],110:[function(require,module,exports){
+},{"./advancingfront":107,"./point":109,"./pointerror":110,"./sweep":112,"./triangle":114}],114:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -10876,7 +10889,7 @@ Triangle.prototype.markConstrainedEdgeByPoints = function(p, q) {
 
 module.exports = Triangle;
 
-},{"./xy":112}],111:[function(require,module,exports){
+},{"./xy":116}],115:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -10987,7 +11000,7 @@ function isAngleObtuse(pa, pb, pc) {
 exports.isAngleObtuse = isAngleObtuse;
 
 
-},{}],112:[function(require,module,exports){
+},{}],116:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -11096,7 +11109,7 @@ module.exports = {
     equals: equals
 };
 
-},{}],113:[function(require,module,exports){
+},{}],117:[function(require,module,exports){
 function Vector2(x, y) {
 	if (typeof x === "object") {
         this.x = x.x||0;
@@ -11298,7 +11311,7 @@ vec2.random = function(scale) {
 vec2.str = vec2.toString;
 
 module.exports = Vector2;
-},{}],114:[function(require,module,exports){
+},{}],118:[function(require,module,exports){
 var decompose = require('fontpath-shape2d')
 var triangulate = require('shape2d-triangulate')
 
@@ -11323,7 +11336,7 @@ module.exports = function(glyph) {
         positions: new Float32Array(tris)
     }
 }
-},{"fontpath-shape2d":13,"shape2d-triangulate":100}],115:[function(require,module,exports){
+},{"fontpath-shape2d":13,"shape2d-triangulate":104}],119:[function(require,module,exports){
 /*!
  * The buffer module from node.js, for the browser.
  *
@@ -12494,7 +12507,7 @@ function assert (test, message) {
   if (!test) throw new Error(message || 'Failed assertion')
 }
 
-},{"base64-js":116,"ieee754":117}],116:[function(require,module,exports){
+},{"base64-js":120,"ieee754":121}],120:[function(require,module,exports){
 var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 ;(function (exports) {
@@ -12616,7 +12629,7 @@ var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 	exports.fromByteArray = uint8ToBase64
 }(typeof exports === 'undefined' ? (this.base64js = {}) : exports))
 
-},{}],117:[function(require,module,exports){
+},{}],121:[function(require,module,exports){
 exports.read = function(buffer, offset, isLE, mLen, nBytes) {
   var e, m,
       eLen = nBytes * 8 - mLen - 1,
@@ -12702,4 +12715,668 @@ exports.write = function(buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128;
 };
 
-},{}]},{},[3])
+},{}],122:[function(require,module,exports){
+module.exports=require(103)
+},{}],123:[function(require,module,exports){
+// shim for using process in browser
+
+var process = module.exports = {};
+
+process.nextTick = (function () {
+    var canSetImmediate = typeof window !== 'undefined'
+    && window.setImmediate;
+    var canPost = typeof window !== 'undefined'
+    && window.postMessage && window.addEventListener
+    ;
+
+    if (canSetImmediate) {
+        return function (f) { return window.setImmediate(f) };
+    }
+
+    if (canPost) {
+        var queue = [];
+        window.addEventListener('message', function (ev) {
+            var source = ev.source;
+            if ((source === window || source === null) && ev.data === 'process-tick') {
+                ev.stopPropagation();
+                if (queue.length > 0) {
+                    var fn = queue.shift();
+                    fn();
+                }
+            }
+        }, true);
+
+        return function nextTick(fn) {
+            queue.push(fn);
+            window.postMessage('process-tick', '*');
+        };
+    }
+
+    return function nextTick(fn) {
+        setTimeout(fn, 0);
+    };
+})();
+
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+}
+
+// TODO(shtylman)
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+
+},{}],124:[function(require,module,exports){
+module.exports = function isBuffer(arg) {
+  return arg && typeof arg === 'object'
+    && typeof arg.copy === 'function'
+    && typeof arg.fill === 'function'
+    && typeof arg.readUInt8 === 'function';
+}
+},{}],125:[function(require,module,exports){
+(function (process,global){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+var formatRegExp = /%[sdj%]/g;
+exports.format = function(f) {
+  if (!isString(f)) {
+    var objects = [];
+    for (var i = 0; i < arguments.length; i++) {
+      objects.push(inspect(arguments[i]));
+    }
+    return objects.join(' ');
+  }
+
+  var i = 1;
+  var args = arguments;
+  var len = args.length;
+  var str = String(f).replace(formatRegExp, function(x) {
+    if (x === '%%') return '%';
+    if (i >= len) return x;
+    switch (x) {
+      case '%s': return String(args[i++]);
+      case '%d': return Number(args[i++]);
+      case '%j':
+        try {
+          return JSON.stringify(args[i++]);
+        } catch (_) {
+          return '[Circular]';
+        }
+      default:
+        return x;
+    }
+  });
+  for (var x = args[i]; i < len; x = args[++i]) {
+    if (isNull(x) || !isObject(x)) {
+      str += ' ' + x;
+    } else {
+      str += ' ' + inspect(x);
+    }
+  }
+  return str;
+};
+
+
+// Mark that a method should not be used.
+// Returns a modified function which warns once by default.
+// If --no-deprecation is set, then it is a no-op.
+exports.deprecate = function(fn, msg) {
+  // Allow for deprecating things in the process of starting up.
+  if (isUndefined(global.process)) {
+    return function() {
+      return exports.deprecate(fn, msg).apply(this, arguments);
+    };
+  }
+
+  if (process.noDeprecation === true) {
+    return fn;
+  }
+
+  var warned = false;
+  function deprecated() {
+    if (!warned) {
+      if (process.throwDeprecation) {
+        throw new Error(msg);
+      } else if (process.traceDeprecation) {
+        console.trace(msg);
+      } else {
+        console.error(msg);
+      }
+      warned = true;
+    }
+    return fn.apply(this, arguments);
+  }
+
+  return deprecated;
+};
+
+
+var debugs = {};
+var debugEnviron;
+exports.debuglog = function(set) {
+  if (isUndefined(debugEnviron))
+    debugEnviron = process.env.NODE_DEBUG || '';
+  set = set.toUpperCase();
+  if (!debugs[set]) {
+    if (new RegExp('\\b' + set + '\\b', 'i').test(debugEnviron)) {
+      var pid = process.pid;
+      debugs[set] = function() {
+        var msg = exports.format.apply(exports, arguments);
+        console.error('%s %d: %s', set, pid, msg);
+      };
+    } else {
+      debugs[set] = function() {};
+    }
+  }
+  return debugs[set];
+};
+
+
+/**
+ * Echos the value of a value. Trys to print the value out
+ * in the best way possible given the different types.
+ *
+ * @param {Object} obj The object to print out.
+ * @param {Object} opts Optional options object that alters the output.
+ */
+/* legacy: obj, showHidden, depth, colors*/
+function inspect(obj, opts) {
+  // default options
+  var ctx = {
+    seen: [],
+    stylize: stylizeNoColor
+  };
+  // legacy...
+  if (arguments.length >= 3) ctx.depth = arguments[2];
+  if (arguments.length >= 4) ctx.colors = arguments[3];
+  if (isBoolean(opts)) {
+    // legacy...
+    ctx.showHidden = opts;
+  } else if (opts) {
+    // got an "options" object
+    exports._extend(ctx, opts);
+  }
+  // set default options
+  if (isUndefined(ctx.showHidden)) ctx.showHidden = false;
+  if (isUndefined(ctx.depth)) ctx.depth = 2;
+  if (isUndefined(ctx.colors)) ctx.colors = false;
+  if (isUndefined(ctx.customInspect)) ctx.customInspect = true;
+  if (ctx.colors) ctx.stylize = stylizeWithColor;
+  return formatValue(ctx, obj, ctx.depth);
+}
+exports.inspect = inspect;
+
+
+// http://en.wikipedia.org/wiki/ANSI_escape_code#graphics
+inspect.colors = {
+  'bold' : [1, 22],
+  'italic' : [3, 23],
+  'underline' : [4, 24],
+  'inverse' : [7, 27],
+  'white' : [37, 39],
+  'grey' : [90, 39],
+  'black' : [30, 39],
+  'blue' : [34, 39],
+  'cyan' : [36, 39],
+  'green' : [32, 39],
+  'magenta' : [35, 39],
+  'red' : [31, 39],
+  'yellow' : [33, 39]
+};
+
+// Don't use 'blue' not visible on cmd.exe
+inspect.styles = {
+  'special': 'cyan',
+  'number': 'yellow',
+  'boolean': 'yellow',
+  'undefined': 'grey',
+  'null': 'bold',
+  'string': 'green',
+  'date': 'magenta',
+  // "name": intentionally not styling
+  'regexp': 'red'
+};
+
+
+function stylizeWithColor(str, styleType) {
+  var style = inspect.styles[styleType];
+
+  if (style) {
+    return '\u001b[' + inspect.colors[style][0] + 'm' + str +
+           '\u001b[' + inspect.colors[style][1] + 'm';
+  } else {
+    return str;
+  }
+}
+
+
+function stylizeNoColor(str, styleType) {
+  return str;
+}
+
+
+function arrayToHash(array) {
+  var hash = {};
+
+  array.forEach(function(val, idx) {
+    hash[val] = true;
+  });
+
+  return hash;
+}
+
+
+function formatValue(ctx, value, recurseTimes) {
+  // Provide a hook for user-specified inspect functions.
+  // Check that value is an object with an inspect function on it
+  if (ctx.customInspect &&
+      value &&
+      isFunction(value.inspect) &&
+      // Filter out the util module, it's inspect function is special
+      value.inspect !== exports.inspect &&
+      // Also filter out any prototype objects using the circular check.
+      !(value.constructor && value.constructor.prototype === value)) {
+    var ret = value.inspect(recurseTimes, ctx);
+    if (!isString(ret)) {
+      ret = formatValue(ctx, ret, recurseTimes);
+    }
+    return ret;
+  }
+
+  // Primitive types cannot have properties
+  var primitive = formatPrimitive(ctx, value);
+  if (primitive) {
+    return primitive;
+  }
+
+  // Look up the keys of the object.
+  var keys = Object.keys(value);
+  var visibleKeys = arrayToHash(keys);
+
+  if (ctx.showHidden) {
+    keys = Object.getOwnPropertyNames(value);
+  }
+
+  // IE doesn't make error fields non-enumerable
+  // http://msdn.microsoft.com/en-us/library/ie/dww52sbt(v=vs.94).aspx
+  if (isError(value)
+      && (keys.indexOf('message') >= 0 || keys.indexOf('description') >= 0)) {
+    return formatError(value);
+  }
+
+  // Some type of object without properties can be shortcutted.
+  if (keys.length === 0) {
+    if (isFunction(value)) {
+      var name = value.name ? ': ' + value.name : '';
+      return ctx.stylize('[Function' + name + ']', 'special');
+    }
+    if (isRegExp(value)) {
+      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
+    }
+    if (isDate(value)) {
+      return ctx.stylize(Date.prototype.toString.call(value), 'date');
+    }
+    if (isError(value)) {
+      return formatError(value);
+    }
+  }
+
+  var base = '', array = false, braces = ['{', '}'];
+
+  // Make Array say that they are Array
+  if (isArray(value)) {
+    array = true;
+    braces = ['[', ']'];
+  }
+
+  // Make functions say that they are functions
+  if (isFunction(value)) {
+    var n = value.name ? ': ' + value.name : '';
+    base = ' [Function' + n + ']';
+  }
+
+  // Make RegExps say that they are RegExps
+  if (isRegExp(value)) {
+    base = ' ' + RegExp.prototype.toString.call(value);
+  }
+
+  // Make dates with properties first say the date
+  if (isDate(value)) {
+    base = ' ' + Date.prototype.toUTCString.call(value);
+  }
+
+  // Make error with message first say the error
+  if (isError(value)) {
+    base = ' ' + formatError(value);
+  }
+
+  if (keys.length === 0 && (!array || value.length == 0)) {
+    return braces[0] + base + braces[1];
+  }
+
+  if (recurseTimes < 0) {
+    if (isRegExp(value)) {
+      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
+    } else {
+      return ctx.stylize('[Object]', 'special');
+    }
+  }
+
+  ctx.seen.push(value);
+
+  var output;
+  if (array) {
+    output = formatArray(ctx, value, recurseTimes, visibleKeys, keys);
+  } else {
+    output = keys.map(function(key) {
+      return formatProperty(ctx, value, recurseTimes, visibleKeys, key, array);
+    });
+  }
+
+  ctx.seen.pop();
+
+  return reduceToSingleString(output, base, braces);
+}
+
+
+function formatPrimitive(ctx, value) {
+  if (isUndefined(value))
+    return ctx.stylize('undefined', 'undefined');
+  if (isString(value)) {
+    var simple = '\'' + JSON.stringify(value).replace(/^"|"$/g, '')
+                                             .replace(/'/g, "\\'")
+                                             .replace(/\\"/g, '"') + '\'';
+    return ctx.stylize(simple, 'string');
+  }
+  if (isNumber(value))
+    return ctx.stylize('' + value, 'number');
+  if (isBoolean(value))
+    return ctx.stylize('' + value, 'boolean');
+  // For some reason typeof null is "object", so special case here.
+  if (isNull(value))
+    return ctx.stylize('null', 'null');
+}
+
+
+function formatError(value) {
+  return '[' + Error.prototype.toString.call(value) + ']';
+}
+
+
+function formatArray(ctx, value, recurseTimes, visibleKeys, keys) {
+  var output = [];
+  for (var i = 0, l = value.length; i < l; ++i) {
+    if (hasOwnProperty(value, String(i))) {
+      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
+          String(i), true));
+    } else {
+      output.push('');
+    }
+  }
+  keys.forEach(function(key) {
+    if (!key.match(/^\d+$/)) {
+      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
+          key, true));
+    }
+  });
+  return output;
+}
+
+
+function formatProperty(ctx, value, recurseTimes, visibleKeys, key, array) {
+  var name, str, desc;
+  desc = Object.getOwnPropertyDescriptor(value, key) || { value: value[key] };
+  if (desc.get) {
+    if (desc.set) {
+      str = ctx.stylize('[Getter/Setter]', 'special');
+    } else {
+      str = ctx.stylize('[Getter]', 'special');
+    }
+  } else {
+    if (desc.set) {
+      str = ctx.stylize('[Setter]', 'special');
+    }
+  }
+  if (!hasOwnProperty(visibleKeys, key)) {
+    name = '[' + key + ']';
+  }
+  if (!str) {
+    if (ctx.seen.indexOf(desc.value) < 0) {
+      if (isNull(recurseTimes)) {
+        str = formatValue(ctx, desc.value, null);
+      } else {
+        str = formatValue(ctx, desc.value, recurseTimes - 1);
+      }
+      if (str.indexOf('\n') > -1) {
+        if (array) {
+          str = str.split('\n').map(function(line) {
+            return '  ' + line;
+          }).join('\n').substr(2);
+        } else {
+          str = '\n' + str.split('\n').map(function(line) {
+            return '   ' + line;
+          }).join('\n');
+        }
+      }
+    } else {
+      str = ctx.stylize('[Circular]', 'special');
+    }
+  }
+  if (isUndefined(name)) {
+    if (array && key.match(/^\d+$/)) {
+      return str;
+    }
+    name = JSON.stringify('' + key);
+    if (name.match(/^"([a-zA-Z_][a-zA-Z_0-9]*)"$/)) {
+      name = name.substr(1, name.length - 2);
+      name = ctx.stylize(name, 'name');
+    } else {
+      name = name.replace(/'/g, "\\'")
+                 .replace(/\\"/g, '"')
+                 .replace(/(^"|"$)/g, "'");
+      name = ctx.stylize(name, 'string');
+    }
+  }
+
+  return name + ': ' + str;
+}
+
+
+function reduceToSingleString(output, base, braces) {
+  var numLinesEst = 0;
+  var length = output.reduce(function(prev, cur) {
+    numLinesEst++;
+    if (cur.indexOf('\n') >= 0) numLinesEst++;
+    return prev + cur.replace(/\u001b\[\d\d?m/g, '').length + 1;
+  }, 0);
+
+  if (length > 60) {
+    return braces[0] +
+           (base === '' ? '' : base + '\n ') +
+           ' ' +
+           output.join(',\n  ') +
+           ' ' +
+           braces[1];
+  }
+
+  return braces[0] + base + ' ' + output.join(', ') + ' ' + braces[1];
+}
+
+
+// NOTE: These type checking functions intentionally don't use `instanceof`
+// because it is fragile and can be easily faked with `Object.create()`.
+function isArray(ar) {
+  return Array.isArray(ar);
+}
+exports.isArray = isArray;
+
+function isBoolean(arg) {
+  return typeof arg === 'boolean';
+}
+exports.isBoolean = isBoolean;
+
+function isNull(arg) {
+  return arg === null;
+}
+exports.isNull = isNull;
+
+function isNullOrUndefined(arg) {
+  return arg == null;
+}
+exports.isNullOrUndefined = isNullOrUndefined;
+
+function isNumber(arg) {
+  return typeof arg === 'number';
+}
+exports.isNumber = isNumber;
+
+function isString(arg) {
+  return typeof arg === 'string';
+}
+exports.isString = isString;
+
+function isSymbol(arg) {
+  return typeof arg === 'symbol';
+}
+exports.isSymbol = isSymbol;
+
+function isUndefined(arg) {
+  return arg === void 0;
+}
+exports.isUndefined = isUndefined;
+
+function isRegExp(re) {
+  return isObject(re) && objectToString(re) === '[object RegExp]';
+}
+exports.isRegExp = isRegExp;
+
+function isObject(arg) {
+  return typeof arg === 'object' && arg !== null;
+}
+exports.isObject = isObject;
+
+function isDate(d) {
+  return isObject(d) && objectToString(d) === '[object Date]';
+}
+exports.isDate = isDate;
+
+function isError(e) {
+  return isObject(e) &&
+      (objectToString(e) === '[object Error]' || e instanceof Error);
+}
+exports.isError = isError;
+
+function isFunction(arg) {
+  return typeof arg === 'function';
+}
+exports.isFunction = isFunction;
+
+function isPrimitive(arg) {
+  return arg === null ||
+         typeof arg === 'boolean' ||
+         typeof arg === 'number' ||
+         typeof arg === 'string' ||
+         typeof arg === 'symbol' ||  // ES6 symbol
+         typeof arg === 'undefined';
+}
+exports.isPrimitive = isPrimitive;
+
+exports.isBuffer = require('./support/isBuffer');
+
+function objectToString(o) {
+  return Object.prototype.toString.call(o);
+}
+
+
+function pad(n) {
+  return n < 10 ? '0' + n.toString(10) : n.toString(10);
+}
+
+
+var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep',
+              'Oct', 'Nov', 'Dec'];
+
+// 26 Feb 16:19:34
+function timestamp() {
+  var d = new Date();
+  var time = [pad(d.getHours()),
+              pad(d.getMinutes()),
+              pad(d.getSeconds())].join(':');
+  return [d.getDate(), months[d.getMonth()], time].join(' ');
+}
+
+
+// log is just a thin wrapper to console.log that prepends a timestamp
+exports.log = function() {
+  console.log('%s - %s', timestamp(), exports.format.apply(exports, arguments));
+};
+
+
+/**
+ * Inherit the prototype methods from one constructor into another.
+ *
+ * The Function.prototype.inherits from lang.js rewritten as a standalone
+ * function (not on Function.prototype). NOTE: If this file is to be loaded
+ * during bootstrapping this function needs to be rewritten using some native
+ * functions as prototype setup using normal JavaScript does not work as
+ * expected during bootstrapping (see mirror.js in r114903).
+ *
+ * @param {function} ctor Constructor function which needs to inherit the
+ *     prototype.
+ * @param {function} superCtor Constructor function to inherit prototype from.
+ */
+exports.inherits = require('inherits');
+
+exports._extend = function(origin, add) {
+  // Don't do anything if add isn't an object
+  if (!add || !isObject(add)) return origin;
+
+  var keys = Object.keys(add);
+  var i = keys.length;
+  while (i--) {
+    origin[keys[i]] = add[keys[i]];
+  }
+  return origin;
+};
+
+function hasOwnProperty(obj, prop) {
+  return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
+}).call(this,require("sycGbZ"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"./support/isBuffer":124,"inherits":122,"sycGbZ":123}]},{},[3])
