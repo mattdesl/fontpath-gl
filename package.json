@@ -7,10 +7,11 @@
   "author": "Matt DesLauriers <dave.des@gmail.com>",
   "dependencies": {
     "fontpath-shape2d": "0.0.5",
-    "fontpath-simple-renderer": "^1.0.0",
+    "fontpath-simple-renderer": "^3.0.1",
     "gl-basic-mesh": "^1.0.1",
     "gl-basic-shader": "^1.0.0",
     "gl-mat4": "^1.0.0",
+    "inherits": "^2.0.1",
     "shape2d-triangulate": "0.0.2"
   },
   "devDependencies": {

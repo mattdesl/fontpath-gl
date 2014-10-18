@@ -1,6 +1,7 @@
-(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 var TextRenderer = require('fontpath-simple-renderer')
 var createShader = require('gl-basic-shader')
+var inherits = require('inherits')
 
 //require only the math we really need..
 var mat4 = {
@@ -43,11 +44,7 @@ function TriangleRenderer(gl, options) {
 }
 
 //inherits from TextRenderer
-TriangleRenderer.prototype = Object.create(TextRenderer.prototype)
-TriangleRenderer.constructor = TriangleRenderer
-
-//copy statics
-TriangleRenderer.Align = TextRenderer.Align
+inherits(TriangleRenderer, TextRenderer)
 
 TriangleRenderer.prototype.triangulateGlyph = function(glyph) {
     throw new Error('this method should be implemented by subclasses')
@@ -107,9 +104,9 @@ TriangleRenderer.prototype.draw = function(x, y, start, end) {
     var result = this.render(x, y, start, end)
 
     for (var i=0; i<result.underlines.length; i++) {
-        //..draw underlines somehow
+        //TODO: maybe use gl-sprite-batch for underlines?
     }
-    for (var i=0; i<result.glyphs.length; i++) {
+    for (i=0; i<result.glyphs.length; i++) {
         var g = result.glyphs[i]
         this._drawGlyph(g)
     }
@@ -128,7 +125,7 @@ TriangleRenderer.prototype.dispose = function() {
 }
 
 module.exports = TriangleRenderer
-},{"fontpath-simple-renderer":17,"gl-basic-mesh":23,"gl-basic-shader":43,"gl-mat4/create":52,"gl-mat4/identity":57,"gl-mat4/scale":68,"gl-mat4/translate":70}],2:[function(require,module,exports){
+},{"fontpath-simple-renderer":17,"gl-basic-mesh":23,"gl-basic-shader":43,"gl-mat4/create":52,"gl-mat4/identity":57,"gl-mat4/scale":68,"gl-mat4/translate":70,"inherits":104}],2:[function(require,module,exports){
 var createText = require('../')
 var createBackground = require('gl-vignette-background')
 var mat4 = require('gl-mat4')
@@ -209,13 +206,13 @@ require('./demo')({
     //the triangulation function, use the default poly2tri
     triangulate: require('../triangulate')
 })
-},{"../triangulate":118,"./demo":2,"fontpath-test-fonts/lib/OpenSans-Regular.ttf":21}],4:[function(require,module,exports){
+},{"../triangulate":119,"./demo":2,"fontpath-test-fonts/lib/OpenSans-Regular.ttf":22}],4:[function(require,module,exports){
 var Base = require('./base')
 
 Base.prototype.triangulateGlyph = require('./triangulate')
 
 module.exports = Base
-},{"./base":1,"./triangulate":118}],5:[function(require,module,exports){
+},{"./base":1,"./triangulate":119}],5:[function(require,module,exports){
 var domready = require('domready');
 require('raf.js');
 
@@ -1844,7 +1841,7 @@ var Shape = new Class({
 });
 
 module.exports = Shape;
-},{"interpolation":15,"klasse":16,"vecmath/lib/Vector2":117}],15:[function(require,module,exports){
+},{"interpolation":15,"klasse":16,"vecmath/lib/Vector2":118}],15:[function(require,module,exports){
 /** Utility function for linear interpolation. */
 module.exports.lerp = function(v0, v1, t) {
     return v0*(1-t)+v1*t;
@@ -2042,12 +2039,79 @@ Class.ignoreFinals = false;
 module.exports = Class;
 },{}],17:[function(require,module,exports){
 var Base = require('fontpath-renderer')
+var inherits = require('inherits')
+
+//TODO: Eventually lots of this code will just replace fontpath-renderer...
 
 function FontpathRenderer(options) {
     if (!(this instanceof FontpathRenderer))
         return new FontpathRenderer(options)
+    Base.call(this, options)
+
+    this.data = {
+        glyphs: [],
+        underlines: []
+    }
+}
+
+inherits(FontpathRenderer, Base)
+
+FontpathRenderer.prototype.renderGlyph = function(i, glyph, scale, x, y) {
+    this.data.glyphs.push(new Glyph(i, glyph, 
+                this.text.charCodeAt(i), 
+                [ scale, this.font.bitmap ? scale : -scale ],
+                [ x, y ]))
+}
+
+FontpathRenderer.prototype.renderUnderline = function(x, y, width, height) {
+    this.data.underlines.push(new Underline(
+        [ x, y ],
+        [ width, height ]
+    ))
+}
+
+FontpathRenderer.prototype.render = function(x, y, start, end) {
+    //new data for result
+    this.data.glyphs.length = 0
+    this.data.underlines.length = 0
+    Base.prototype.render.call(this, x, y, start, end)
+    return this.data
+}
+
+function Glyph(index, glyph, charCode, scale, position) {
+    this.glyph = glyph
+    this.index = index
+    this.charCode = charCode
+    this.position = position
+    this.scale = scale
+}
+
+function Underline(position, size) {
+    this.position = position
+    this.size = size
+}
+
+module.exports = FontpathRenderer
+},{"fontpath-renderer":18,"inherits":104}],18:[function(require,module,exports){
+var GlyphIterator = require('fontpath-glyph-iterator');
+var WordWrap = require('fontpath-wordwrap');
+
+var tmpBounds = { x: 0, y: 0, width: 0, height: 0, glyphs: 0 };
+
+function TextRenderer(options) {
+    if (!(this instanceof TextRenderer))
+        return new TextRenderer(options)
     options = options||{}
-    Base.call(this, options.font, options.fontSize)
+
+    this.iterator = new GlyphIterator(options.font, options.fontSize);
+    this.wordwrap = new WordWrap();
+
+    this.align = 'left';
+    this.underline = false;
+
+    this.underlineThickness = undefined;
+    this.underlinePosition = undefined;
+    this._text = "";
 
     if (typeof options.align === 'string')
         this.align = options.align
@@ -2065,69 +2129,12 @@ function FontpathRenderer(options) {
         this.layout(options.wrapWidth)
 }
 
-FontpathRenderer.prototype = Object.create(Base.prototype)
-FontpathRenderer.constructor = FontpathRenderer
-FontpathRenderer.Align = Base.Align
-
-FontpathRenderer.prototype.renderGlyph = function(i, glyph, scale, x, y) {
-    this.data.glyphs.push({
-        glyph: glyph,
-        charCode: this.text.charCodeAt(i),
-        scale: [ scale, -scale ],
-        position: [ x, y ],
-        index: i
-    })
-}
-
-FontpathRenderer.prototype.renderUnderline = function(x, y, width, height) {
-    this.data.underlines.push({
-        position: [ x, y ],
-        size: [ width, height ]
-    })
-}
-
-FontpathRenderer.prototype.render = function(x, y, start, end) {
-    //new data for result
-    this.data = {
-        glyphs: [],
-        underlines: []
-    }
-    Base.prototype.render.call(this, x, y, start, end)
-    return this.data
-}
-
-module.exports = FontpathRenderer
-},{"fontpath-renderer":18}],18:[function(require,module,exports){
-var GlyphIterator = require('fontpath-glyph-iterator');
-var WordWrap = require('fontpath-wordwrap');
-
-var tmpBounds = { x: 0, y: 0, width: 0, height: 0, glyphs: 0 };
-
-function TextRenderer(font, fontSize) {
-    this.iterator = new GlyphIterator(font, fontSize);
-    this.wordwrap = new WordWrap();
-
-    this.align = TextRenderer.Align.LEFT;
-    this.underline = false;
-
-    this.underlineThickness = undefined;
-    this.underlinePosition = undefined;
-    this._text = "";
-}
-
-//Externally we use strings for parity with HTML5 canvas, better debugging, etc.
-TextRenderer.Align = {
-    LEFT: 'left',
-    CENTER: 'center',
-    RIGHT: 'right'
-};
-
 //Internally we will use integers to avoid string comparison for each glyph
 var LEFT_ALIGN = 0, CENTER_ALIGN = 1, RIGHT_ALIGN = 2;
 var ALIGN_ARRAY = [
-    TextRenderer.Align.LEFT, 
-    TextRenderer.Align.CENTER, 
-    TextRenderer.Align.RIGHT
+    'left', 
+    'center', 
+    'right'
 ];
 
 /**
@@ -2290,7 +2297,9 @@ TextRenderer.prototype.computeUnderlineHeight = function () {
         return this.underlineThickness; 
     } else if (font.underline_thickness) {
         return font.underline_thickness * scale; 
-    } else
+    } else if (font.bitmap)
+        return font.size/8;
+    else
         return (font.units_per_EM/8)*scale;
 };
 
@@ -2313,8 +2322,11 @@ TextRenderer.prototype.computeUnderlinePosition = function () {
         return this.underlinePosition; 
     } else if (font.underline_position) {
         return -font.underline_position * scale; 
-    } else 
+    } else if (font.bitmap) {
+        return font.size/4;
+    } else {
         return (font.units_per_EM/4)*scale;
+    }
 };
 
 /**
@@ -2471,19 +2483,22 @@ TextRenderer.prototype.render = function (x, y, start, end) {
 };
 
 module.exports = TextRenderer;
-},{"fontpath-glyph-iterator":19,"fontpath-wordwrap":20}],19:[function(require,module,exports){
+},{"fontpath-glyph-iterator":19,"fontpath-wordwrap":21}],19:[function(require,module,exports){
 var util = require('fontpath-util');
 
 var DEFAULT_TAB_WIDTH = 4;
 
 function GlyphIterator(font, fontSize) {
     this._fontSize = undefined;
+    this._fontScale = undefined;
     this._font = undefined;
     this.fontScale = 1.0;
     this.kerning = true;
     this.lineHeight = undefined;
-
-    this.fontSize = fontSize;
+    
+    this.fontSize = typeof fontSize === 'number'
+            ? fontSize
+            : (font ? font.size : undefined);
     this.font = font;
 
     //Number of spaces for a tab character
@@ -2537,6 +2552,10 @@ Object.defineProperty(GlyphIterator.prototype, "tabWidth", {
 
 Object.defineProperty(GlyphIterator.prototype, "fontSize", {
     get: function() {
+        if (typeof this._fontSize !== 'number')
+            return this.font.bitmap 
+                ? this.font.size 
+                : util.pointToPixel(this.font.size)
         return this._fontSize;
     },
 
@@ -2746,7 +2765,76 @@ GlyphIterator.prototype.getBounds = function(text, start, end, availableWidth, o
 };
 
 module.exports = GlyphIterator;
-},{"fontpath-util":22}],20:[function(require,module,exports){
+},{"fontpath-util":20}],20:[function(require,module,exports){
+// module.exports.pointsToPixels = function(pointSize, resolution) {
+// 	resolution = typeof resolution === "number" ? resolution : 72;
+// 	return pointSize * resolution / 72;
+// };
+
+// module.exports.coordToPixel = function(coord, pixelSize, emSize) {
+// 	emSize = typeof emSize === "number" ? emSize : 2048;
+// 	return coord * pixelSize / emSize;
+// };
+
+/**
+ * Converts a pt size to px size, namely useful for matching
+ * size with CSS styles. If no DPI is specified, 96 is assumed
+ * (as it leads to correct rendering in all browsers).
+ * 
+ * @param  {Number} fontSize the desired font size in points
+ * @param  {Number} dpi      the expected DPI, generally 96 for browsers
+ * @return {Number}          the rounded pixel font size
+ */
+module.exports.pointToPixel = function(fontSize, dpi) {
+    dpi = dpi||dpi===0 ? dpi : 96;
+    fontSize = fontSize * dpi / 72;
+    return Math.round(fontSize);
+};
+
+/**
+ * For the given font and (pixel) font size, this method returns the
+ * scale that will need to be applied to EM units (i.e. font paths) 
+ * to have the font render at the expected size (i.e. to match the browser).
+ *
+ * If no font size is specified, we will use the default font size (which is in points)
+ * and convert it to pixels. 
+ * 
+ * @param  {Font} font     a font object from the fontpath tool
+ * @param  {Number} fontSize the desired font size, defaults to the font's default size
+ * @return {Number} returns the scale for this font size         
+ */
+module.exports.getPxScale = function(font, fontSize) {
+    if (font.bitmap)
+        return 1.0;
+
+    //If no fontSize is specified, it will just fall back to using the font's own size with 96 DPI.
+    fontSize = typeof fontSize === "number" ? fontSize : this.pointToPixel(font.size);
+
+    //Takes in a font size in PIXELS and gives us the expected scaling factor
+    var sz = font.units_per_EM/64;
+    sz = (sz/font.size * fontSize);
+
+    return ((font.resolution * 1/72 * sz) / font.units_per_EM);
+};
+
+/**
+ * For the given font and (point) font size, this method returns the
+ * scale that will need to be applied to EM units (i.e. font paths) 
+ * to have the font render at the expected size (i.e. to match the browser).
+ * 
+ * If no font size is specified, we will use the default font size.
+ * 
+ * @param  {Font} font       a font object from the fontpath tool
+ * @param  {Number} fontSize the desired font size, defaults to the font's default size
+ * @return {Number}          the scale for this font size
+ */
+module.exports.getPtScale = function(font, fontSize) {
+    fontSize = typeof fontSize === "number" ? fontSize : font.size;
+    fontSize = this.pointToPixel(fontSize);
+    return this.getPxScale(font, fontSize);
+};
+
+},{}],21:[function(require,module,exports){
 var tmpBounds = { x: 0, y: 0, width: 0, height: 0, glyphs: 0 };
 
 function isWhitespace(chr) {
@@ -2967,74 +3055,8 @@ WordWrap.Line = function(start, end, width) {
 };
 
 module.exports = WordWrap;
-},{}],21:[function(require,module,exports){
-module.exports = {"size":32,"resolution":72,"underline_thickness":102,"underline_position":-205,"max_advance_width":2476,"height":2789,"descender":-600,"ascender":2189,"units_per_EM":2048,"style_name":"Regular","family_name":"Open Sans","kerning":[["\"","A",-128],["\"","T",64],["\"","V",64],["\"","W",64],["\"","a",-64],["\"","c",-128],["\"","d",-128],["\"","e",-128],["\"","g",-64],["\"","m",-64],["\"","n",-64],["\"","o",-128],["\"","p",-64],["\"","q",-128],["\"","r",-64],["\"","s",-64],["\"","u",-64],["'","A",-128],["'","T",64],["'","V",64],["'","W",64],["'","a",-64],["'","c",-128],["'","d",-128],["'","e",-128],["'","g",-64],["'","m",-64],["'","n",-64],["'","o",-128],["'","p",-64],["'","q",-128],["'","r",-64],["'","s",-64],["'","u",-64],["(","J",192],[",","C",-128],[",","G",-128],[",","O",-128],[",","Q",-128],[",","T",-128],[",","U",-64],[",","V",-128],[",","W",-128],[",","Y",-128],["-","T",-64],[".","C",-128],[".","G",-128],[".","O",-128],[".","Q",-128],[".","T",-128],[".","U",-64],[".","V",-128],[".","W",-128],[".","Y",-128],["A","\"",-128],["A","'",-128],["A","C",-64],["A","G",-64],["A","J",256],["A","O",-64],["A","Q",-64],["A","T",-128],["A","V",-64],["A","W",-64],["A","Y",-128],["B",",",-64],["B",".",-64],["B","A",-64],["B","T",-64],["B","X",-64],["C","C",-64],["C","G",-64],["C","O",-64],["C","Q",-64],["D",",",-64],["D",".",-64],["D","A",-64],["D","T",-64],["D","X",-64],["E","J",128],["F",",",-128],["F",".",-128],["F","?",64],["F","A",-64],["K","C",-64],["K","G",-64],["K","O",-64],["K","Q",-64],["L","\"",-192],["L","'",-192],["L","C",-64],["L","G",-64],["L","O",-64],["L","Q",-64],["L","T",-64],["L","V",-64],["L","W",-64],["L","Y",-64],["O",",",-64],["O",".",-64],["O","A",-64],["O","T",-64],["O","X",-64],["P",",",-256],["P",".",-256],["P","A",-128],["P","X",-64],["Q",",",-64],["Q",".",-64],["Q","A",-64],["Q","T",-64],["Q","X",-64],["T",",",-128],["T","-",-64],["T",".",-128],["T","?",64],["T","A",-128],["T","C",-64],["T","G",-64],["T","O",-64],["T","Q",-64],["T","T",64],["T","a",-192],["T","c",-128],["T","d",-128],["T","e",-128],["T","g",-128],["T","m",-128],["T","n",-128],["T","o",-128],["T","p",-128],["T","q",-128],["T","r",-128],["T","s",-128],["T","u",-128],["T","v",-64],["T","w",-64],["T","x",-64],["T","y",-64],["T","z",-64],["U",",",-64],["U",".",-64],["V",",",-128],["V",".",-128],["V","?",64],["V","A",-64],["V","a",-64],["V","c",-64],["V","d",-64],["V","e",-64],["V","o",-64],["V","q",-64],["W",",",-128],["W",".",-128],["W","?",64],["W","A",-64],["W","a",-64],["W","c",-64],["W","d",-64],["W","e",-64],["W","o",-64],["W","q",-64],["X","C",-64],["X","G",-64],["X","O",-64],["X","Q",-64],["Y",",",-128],["Y",".",-128],["Y","?",64],["Y","A",-128],["Y","C",-64],["Y","G",-64],["Y","O",-64],["Y","Q",-64],["Y","a",-128],["Y","c",-128],["Y","d",-128],["Y","e",-128],["Y","g",-64],["Y","m",-64],["Y","n",-64],["Y","o",-128],["Y","p",-64],["Y","q",-128],["Y","r",-64],["Y","s",-64],["Y","u",-64],["Y","z",-64],["[","J",192],["b","v",-64],["b","w",-64],["b","x",-64],["b","y",-64],["c","\"",64],["c","'",64],["e","v",-64],["e","w",-64],["e","x",-64],["e","y",-64],["f","\"",128],["f","'",128],["k","c",-64],["k","d",-64],["k","e",-64],["k","o",-64],["k","q",-64],["o","v",-64],["o","w",-64],["o","x",-64],["o","y",-64],["p","v",-64],["p","w",-64],["p","x",-64],["p","y",-64],["r","\"",64],["r","'",64],["r","a",-64],["r","c",-64],["r","d",-64],["r","e",-64],["r","o",-64],["r","q",-64],["t","\"",64],["t","'",64],["v","\"",64],["v","'",64],["v",",",-64],["v",".",-64],["v","?",64],["w","\"",64],["w","'",64],["w",",",-64],["w",".",-64],["w","?",64],["x","c",-64],["x","d",-64],["x","e",-64],["x","o",-64],["x","q",-64],["y","\"",64],["y","'",64],["y",",",-64],["y",".",-64],["y","?",64],["{","J",192]],"glyphs":{"0":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",1052,736],["q",1052,366,934,183],["q",817,0,575,0],["q",342,0,221,187],["q",100,375,100,736],["q",100,1110,217,1291],["q",334,1472,575,1472],["q",809,1472,930,1283],["q",1052,1094,1052,736],["m",268,736],["q",268,426,341,284],["q",414,143,575,143],["q",737,143,809,286],["q",882,430,882,736],["q",882,1043,809,1185],["q",737,1328,575,1328],["q",414,1328,341,1187],["q",268,1047,268,736]]},"1":{"xoff":1152,"width":640,"height":1472,"hbx":128,"hby":1472,"path":[["m",706,0],["l",544,0],["l",544,1060],["q",544,1192,552,1310],["q",531,1290,505,1269],["q",480,1248,272,1088],["l",185,1194],["l",566,1472],["l",706,1472],["l",706,0]]},"2":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",1044,0],["l",98,0],["l",98,142],["l",476,526],["q",648,702,703,777],["q",758,853,785,924],["q",813,996,813,1078],["q",813,1194,743,1262],["q",674,1330,550,1330],["q",461,1330,381,1300],["q",301,1270,203,1191],["l",117,1304],["q",316,1472,550,1472],["q",753,1472,868,1367],["q",983,1263,983,1086],["q",983,948,906,813],["q",830,679,621,472],["l",307,162],["l",307,154],["l",1044,154],["l",1044,0]]},"3":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",990,1115],["q",990,978,913,891],["q",836,804,694,775],["l",694,767],["q",867,746,950,657],["q",1034,569,1034,426],["q",1034,221,891,110],["q",749,0,486,0],["q",372,0,277,17],["q",182,35,92,79],["l",92,237],["q",185,190,290,165],["q",396,141,490,141],["q",862,141,862,430],["q",862,689,453,689],["l",312,689],["l",312,832],["l",455,832],["q",622,832,720,905],["q",818,978,818,1108],["q",818,1212,746,1271],["q",674,1330,550,1330],["q",456,1330,372,1304],["q",289,1278,182,1208],["l",100,1320],["q",189,1391,304,1431],["q",420,1472,548,1472],["q",758,1472,874,1376],["q",990,1281,990,1115]]},"4":{"xoff":1152,"width":1152,"height":1472,"hbx":0,"hby":1472,"path":[["m",1112,361],["l",901,361],["l",901,0],["l",742,0],["l",742,361],["l",42,361],["l",42,503],["l",725,1472],["l",901,1472],["l",901,512],["l",1112,512],["l",1112,361],["m",742,512],["l",742,987],["q",742,1126,752,1302],["l",744,1302],["q",697,1208,656,1147],["l",208,512],["l",742,512]]},"5":{"xoff":1152,"width":960,"height":1472,"hbx":128,"hby":1472,"path":[["m",550,896],["q",776,896,906,783],["q",1036,671,1036,476],["q",1036,253,894,126],["q",752,0,502,0],["q",259,0,131,79],["l",131,239],["q",200,194,301,168],["q",403,143,502,143],["q",675,143,770,224],["q",866,305,866,457],["q",866,755,498,755],["q",405,755,249,726],["l",165,781],["l",219,1472],["l",935,1472],["l",935,1319],["l",361,1319],["l",325,873],["q",438,896,550,896]]},"6":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",115,632],["q",115,1054,279,1263],["q",444,1472,767,1472],["q",878,1472,942,1453],["l",942,1310],["q",867,1335,770,1335],["q",540,1335,418,1189],["q",297,1043,285,730],["l",297,730],["q",405,896,638,896],["q",831,896,942,781],["q",1054,667,1054,471],["q",1054,251,931,125],["q",809,0,600,0],["q",377,0,246,167],["q",115,334,115,632],["m",598,141],["q",737,141,813,225],["q",890,310,890,471],["q",890,608,819,686],["q",748,765,606,765],["q",518,765,445,730],["q",372,695,328,633],["q",285,572,285,506],["q",285,408,324,323],["q",363,239,435,190],["q",507,141,598,141]]},"7":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",280,0],["l",874,1319],["l",92,1319],["l",92,1472],["l",1050,1472],["l",1050,1338],["l",461,0],["l",280,0]]},"8":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",575,1472],["q",771,1472,886,1379],["q",1001,1287,1001,1124],["q",1001,1017,935,928],["q",869,840,725,768],["q",900,686,974,595],["q",1048,505,1048,386],["q",1048,210,923,105],["q",798,0,580,0],["q",350,0,226,99],["q",102,198,102,380],["q",102,623,403,758],["q",268,835,209,925],["q",150,1015,150,1126],["q",150,1284,265,1378],["q",381,1472,575,1472],["m",266,378],["q",266,263,347,199],["q",429,135,576,135],["q",722,135,803,202],["q",884,269,884,385],["q",884,478,808,550],["q",732,622,542,690],["q",397,629,331,555],["q",266,481,266,378],["m",573,1337],["q",451,1337,382,1277],["q",313,1218,313,1119],["q",313,1028,370,962],["q",428,897,582,832],["q",721,891,779,959],["q",837,1028,837,1119],["q",837,1219,766,1278],["q",696,1337,573,1337]]},"9":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",1044,840],["q",1044,0,391,0],["q",277,0,210,20],["l",210,163],["q",288,137,388,137],["q",623,137,743,285],["q",863,433,874,739],["l",862,739],["q",808,659,719,617],["q",630,576,518,576],["q",328,576,216,687],["q",104,799,104,999],["q",104,1218,229,1345],["q",355,1472,560,1472],["q",706,1472,816,1397],["q",926,1322,985,1178],["q",1044,1035,1044,840],["m",560,1330],["q",420,1330,344,1243],["q",268,1156,268,1001],["q",268,865,338,787],["q",409,709,552,709],["q",641,709,715,744],["q",790,779,833,839],["q",876,900,876,966],["q",876,1065,836,1149],["q",796,1234,724,1282],["q",653,1330,560,1330]]}," ":{"xoff":512,"width":0,"height":0,"hbx":0,"hby":0,"path":[]},"!":{"xoff":576,"width":320,"height":1472,"hbx":128,"hby":1472,"path":[["m",334,448],["l",229,448],["l",178,1472],["l",385,1472],["l",334,448],["m",160,135],["q",160,271,280,271],["q",338,271,369,236],["q",401,201,401,135],["q",401,71,369,35],["q",337,0,280,0],["q",228,0,194,31],["q",160,63,160,135]]},"\"":{"xoff":832,"width":576,"height":512,"hbx":128,"hby":1472,"path":[["m",321,1472],["l",281,960],["l",176,960],["l",135,1472],["l",321,1472],["m",697,1472],["l",656,960],["l",552,960],["l",511,1472],["l",697,1472]]},"#":{"xoff":1344,"width":1344,"height":1472,"hbx":0,"hby":1472,"path":[["m",996,897],["l",928,576],["l",1215,576],["l",1215,447],["l",904,447],["l",818,0],["l",681,0],["l",767,447],["l",457,447],["l",373,0],["l",237,0],["l",319,447],["l",55,447],["l",55,576],["l",344,576],["l",414,897],["l",133,897],["l",133,1024],["l",436,1024],["l",520,1472],["l",659,1472],["l",575,1024],["l",887,1024],["l",973,1472],["l",1107,1472],["l",1021,1024],["l",1287,1024],["l",1287,897],["l",996,897],["m",481,576],["l",791,576],["l",859,897],["l",549,897],["l",481,576]]},"$":{"xoff":1152,"width":896,"height":1664,"hbx":128,"hby":1536,"path":[["m",1019,412],["q",1019,275,919,185],["q",820,96,641,73],["l",641,-128],["l",512,-128],["l",512,64],["q",402,64,298,81],["q",195,99,129,130],["l",129,286],["q",211,249,317,225],["q",424,202,512,202],["l",512,649],["q",310,714,229,801],["q",148,888,148,1025],["q",148,1157,248,1241],["q",348,1326,512,1344],["l",512,1536],["l",641,1536],["l",641,1346],["q",821,1341,988,1272],["l",937,1141],["q",792,1200,641,1211],["l",641,772],["q",794,721,870,673],["q",947,626,983,563],["q",1019,501,1019,412],["m",849,399],["q",849,473,806,518],["q",764,563,641,608],["l",641,212],["q",849,243,849,399],["m",317,1027],["q",317,950,360,903],["q",404,857,512,815],["l",512,1207],["q",416,1191,366,1144],["q",317,1097,317,1027]]},"%":{"xoff":1664,"width":1536,"height":1472,"hbx":64,"hby":1472,"path":[["m",241,1026],["q",241,861,277,779],["q",313,697,394,697],["q",554,697,554,1026],["q",554,1353,394,1353],["q",313,1353,277,1271],["q",241,1190,241,1026],["m",691,1026],["q",691,803,615,689],["q",540,576,394,576],["q",256,576,179,692],["q",103,808,103,1026],["q",103,1248,176,1360],["q",250,1472,394,1472],["q",537,1472,614,1356],["q",691,1240,691,1026],["m",1109,449],["q",1109,284,1145,202],["q",1181,120,1263,120],["q",1345,120,1384,201],["q",1423,282,1423,449],["q",1423,615,1384,695],["q",1345,775,1263,775],["q",1181,775,1145,695],["q",1109,615,1109,449],["m",1560,449],["q",1560,228,1484,114],["q",1409,0,1263,0],["q",1123,0,1047,116],["q",972,233,972,449],["q",972,671,1045,783],["q",1119,896,1263,896],["q",1403,896,1481,781],["q",1560,666,1560,449],["m",1306,1472],["l",505,0],["l",360,0],["l",1161,1472],["l",1306,1472]]},"&":{"xoff":1472,"width":1408,"height":1472,"hbx":64,"hby":1472,"path":[["m",410,1156],["q",410,1086,445,1022],["q",480,959,565,870],["q",690,946,739,1010],["q",788,1075,788,1159],["q",788,1237,738,1286],["q",688,1335,604,1335],["q",518,1335,464,1286],["q",410,1238,410,1156],["m",562,149],["q",798,149,954,275],["l",525,687],["q",416,624,371,582],["q",326,541,304,493],["q",283,446,283,385],["q",283,277,359,213],["q",435,149,562,149],["m",111,380],["q",111,504,179,599],["q",248,694,425,791],["q",341,887,311,936],["q",281,986,263,1039],["q",246,1093,246,1151],["q",246,1302,342,1387],["q",439,1472,611,1472],["q",771,1472,862,1387],["q",954,1303,954,1153],["q",954,1045,887,953],["q",820,862,666,768],["l",1065,386],["q",1120,446,1152,527],["q",1185,608,1208,704],["l",1376,704],["q",1309,427,1174,283],["l",1468,0],["l",1242,0],["l",1060,173],["q",944,80,824,40],["q",704,0,556,0],["q",344,0,227,101],["q",111,202,111,380]]},"'":{"xoff":448,"width":192,"height":512,"hbx":128,"hby":1472,"path":[["m",318,1472],["l",278,960],["l",173,960],["l",132,1472],["l",318,1472]]},"(":{"xoff":576,"width":512,"height":1792,"hbx":64,"hby":1472,"path":[["m",78,568],["q",78,834,151,1065],["q",225,1297,364,1472],["l",518,1472],["q",385,1278,318,1046],["q",252,815,252,570],["q",252,329,320,99],["q",388,-130,516,-320],["l",364,-320],["q",224,-149,151,78],["q",78,306,78,568]]},")":{"xoff":576,"width":512,"height":1792,"hbx":0,"hby":1472,"path":[["m",498,568],["q",498,304,424,76],["q",351,-151,212,-320],["l",60,-320],["q",188,-131,256,99],["q",324,329,324,570],["q",324,815,257,1046],["q",191,1278,58,1472],["l",212,1472],["q",352,1296,425,1064],["q",498,832,498,568]]},"*":{"xoff":1152,"width":1024,"height":896,"hbx":64,"hby":1536,"path":[["m",669,1536],["l",626,1150],["l",1032,1259],["l",1058,1080],["l",670,1050],["l",923,732],["l",748,640],["l",568,994],["l",405,640],["l",225,732],["l",472,1050],["l",88,1080],["l",118,1259],["l",516,1150],["l",473,1536],["l",669,1536]]},"+":{"xoff":1152,"width":1024,"height":1024,"hbx":64,"hby":1216,"path":[["m",645,768],["l",1057,768],["l",1057,630],["l",645,630],["l",645,204],["l",506,204],["l",506,630],["l",96,630],["l",96,768],["l",506,768],["l",506,1196],["l",645,1196],["l",645,768]]},",":{"xoff":512,"width":320,"height":512,"hbx":64,"hby":256,"path":[["m",357,256],["l",372,233],["q",346,131,296,-4],["q",246,-140,192,-256],["l",64,-256],["q",92,-150,125,6],["q",158,162,171,256],["l",357,256]]},"-":{"xoff":640,"width":512,"height":192,"hbx":64,"hby":640,"path":[["m",82,488],["l",82,640],["l",558,640],["l",558,488],["l",82,488]]},".":{"xoff":576,"width":320,"height":320,"hbx":128,"hby":320,"path":[["m",161,135],["q",161,202,191,236],["q",222,271,279,271],["q",337,271,369,236],["q",402,202,402,135],["q",402,70,369,35],["q",336,0,279,0],["q",228,0,194,31],["q",161,63,161,135]]},"/":{"xoff":768,"width":768,"height":1472,"hbx":0,"hby":1472,"path":[["m",747,1472],["l",190,0],["l",20,0],["l",577,1472],["l",747,1472]]},":":{"xoff":576,"width":320,"height":1088,"hbx":128,"hby":1088,"path":[["m",161,135],["q",161,202,191,236],["q",222,271,279,271],["q",337,271,369,236],["q",402,202,402,135],["q",402,70,369,35],["q",336,0,279,0],["q",228,0,194,31],["q",161,63,161,135],["m",161,953],["q",161,1088,279,1088],["q",402,1088,402,953],["q",402,888,369,853],["q",336,818,279,818],["q",228,818,194,849],["q",161,881,161,953]]},";":{"xoff":576,"width":384,"height":1344,"hbx":64,"hby":1088,"path":[["m",358,256],["l",373,233],["q",347,131,298,-4],["q",249,-140,196,-256],["l",71,-256],["q",98,-150,130,6],["q",163,162,176,256],["l",358,256],["m",155,953],["q",155,1088,274,1088],["q",397,1088,397,953],["q",397,888,364,853],["q",331,818,274,818],["q",216,818,185,853],["q",155,888,155,953]]},"<":{"xoff":1152,"width":1024,"height":960,"hbx":64,"hby":1216,"path":[["m",1048,256],["l",102,662],["l",102,756],["l",1048,1216],["l",1048,1073],["l",278,716],["l",1048,401],["l",1048,256]]},"=":{"xoff":1152,"width":1024,"height":576,"hbx":64,"hby":1024,"path":[["m",117,887],["l",117,1024],["l",1032,1024],["l",1032,887],["l",117,887],["m",117,448],["l",117,585],["l",1032,585],["l",1032,448],["l",117,448]]},">":{"xoff":1152,"width":1024,"height":960,"hbx":64,"hby":1216,"path":[["m",102,401],["l",873,714],["l",102,1073],["l",102,1216],["l",1048,756],["l",1048,662],["l",102,256],["l",102,401]]},"?":{"xoff":896,"width":896,"height":1472,"hbx":0,"hby":1472,"path":[["m",295,448],["l",295,499],["q",295,609,332,680],["q",369,751,470,830],["q",609,938,645,992],["q",682,1047,682,1124],["q",682,1220,615,1272],["q",548,1324,422,1324],["q",341,1324,264,1305],["q",188,1287,88,1238],["l",28,1373],["q",221,1472,430,1472],["q",625,1472,733,1383],["q",841,1294,841,1132],["q",841,1062,821,1009],["q",801,957,762,910],["q",723,863,594,759],["q",491,677,457,623],["q",424,569,424,479],["l",424,448],["l",295,448],["m",245,135],["q",245,271,365,271],["q",423,271,454,236],["q",486,201,486,135],["q",486,71,454,35],["q",422,0,365,0],["q",313,0,279,31],["q",245,63,245,135]]},"@":{"xoff":1856,"width":1728,"height":1664,"hbx":64,"hby":1472,"path":[["m",1734,717],["q",1734,570,1689,448],["q",1645,326,1564,259],["q",1484,192,1380,192],["q",1293,192,1233,247],["q",1174,303,1163,389],["l",1155,389],["q",1115,296,1039,244],["q",964,192,861,192],["q",710,192,624,301],["q",539,411,539,598],["q",539,816,658,952],["q",777,1088,970,1088],["q",1039,1088,1125,1074],["q",1212,1061,1282,1037],["l",1257,531],["l",1257,507],["q",1257,315,1391,315],["q",1484,315,1541,427],["q",1599,539,1599,718],["q",1599,907,1524,1048],["q",1450,1190,1312,1266],["q",1174,1343,995,1343],["q",770,1343,603,1249],["q",437,1156,349,982],["q",261,808,261,580],["q",261,271,423,105],["q",586,-61,892,-61],["q",1104,-61,1332,25],["l",1332,-108],["q",1138,-192,892,-192],["q",526,-192,324,9],["q",122,211,122,573],["q",122,836,230,1041],["q",338,1247,537,1359],["q",737,1472,995,1472],["q",1212,1472,1381,1378],["q",1550,1285,1642,1113],["q",1734,941,1734,717],["m",690,593],["q",690,315,888,315],["q",1098,315,1116,658],["l",1130,943],["q",1057,965,971,965],["q",839,965,764,866],["q",690,768,690,593]]},"A":{"xoff":1280,"width":1280,"height":1472,"hbx":0,"hby":1472,"path":[["m",1104,0],["l",925,487],["l",349,487],["l",172,0],["l",0,0],["l",571,1472],["l",712,1472],["l",1280,0],["l",1104,0],["m",873,640],["l",706,1083],["q",673,1168,639,1290],["q",617,1196,577,1083],["l",408,640],["l",873,640]]},"B":{"xoff":1344,"width":1088,"height":1472,"hbx":192,"hby":1472,"path":[["m",204,1472],["l",622,1472],["q",917,1472,1048,1383],["q",1180,1294,1180,1103],["q",1180,970,1106,884],["q",1033,798,892,772],["l",892,762],["q",1230,705,1230,414],["q",1230,219,1096,109],["q",962,0,721,0],["l",204,0],["l",204,1472],["m",374,832],["l",659,832],["q",843,832,923,890],["q",1004,948,1004,1086],["q",1004,1213,914,1269],["q",825,1325,629,1325],["l",374,1325],["l",374,832],["m",374,688],["l",374,145],["l",685,145],["q",865,145,956,213],["q",1048,281,1048,426],["q",1048,561,954,624],["q",861,688,671,688],["l",374,688]]},"C":{"xoff":1280,"width":1216,"height":1472,"hbx":64,"hby":1472,"path":[["m",820,1320],["q",582,1320,444,1163],["q",306,1007,306,736],["q",306,456,439,303],["q",572,151,818,151],["q",969,151,1163,206],["l",1163,57],["q",1012,0,792,0],["q",472,0,298,192],["q",124,384,124,737],["q",124,959,207,1125],["q",291,1292,449,1382],["q",608,1472,822,1472],["q",1050,1472,1220,1388],["l",1149,1242],["q",985,1320,820,1320]]},"D":{"xoff":1472,"width":1216,"height":1472,"hbx":192,"hby":1472,"path":[["m",1349,750],["q",1349,386,1155,193],["q",961,0,597,0],["l",198,0],["l",198,1472],["l",640,1472],["q",976,1472,1162,1281],["q",1349,1091,1349,750],["m",1169,744],["q",1169,1033,1028,1179],["q",888,1325,610,1325],["l",368,1325],["l",368,147],["l",571,147],["q",869,147,1019,298],["q",1169,449,1169,744]]},"E":{"xoff":1152,"width":896,"height":1472,"hbx":192,"hby":1472,"path":[["m",1028,0],["l",203,0],["l",203,1472],["l",1028,1472],["l",1028,1321],["l",373,1321],["l",373,832],["l",988,832],["l",988,682],["l",373,682],["l",373,152],["l",1028,152],["l",1028,0]]},"F":{"xoff":1088,"width":896,"height":1472,"hbx":192,"hby":1472,"path":[["m",377,0],["l",207,0],["l",207,1472],["l",1046,1472],["l",1046,1321],["l",377,1321],["l",377,768],["l",1006,768],["l",1006,617],["l",377,617],["l",377,0]]},"G":{"xoff":1472,"width":1280,"height":1472,"hbx":64,"hby":1472,"path":[["m",833,768],["l",1324,768],["l",1324,73],["q",1209,37,1090,18],["q",972,0,816,0],["q",488,0,305,193],["q",123,387,123,736],["q",123,959,213,1127],["q",304,1295,473,1383],["q",643,1472,871,1472],["q",1103,1472,1302,1386],["l",1237,1236],["q",1042,1320,862,1320],["q",599,1320,451,1165],["q",303,1010,303,735],["q",303,447,445,298],["q",587,149,862,149],["q",1012,149,1154,183],["l",1154,616],["l",833,616],["l",833,768]]},"H":{"xoff":1536,"width":1152,"height":1472,"hbx":192,"hby":1472,"path":[["m",1333,0],["l",1163,0],["l",1163,680],["l",374,680],["l",374,0],["l",204,0],["l",204,1472],["l",374,1472],["l",374,832],["l",1163,832],["l",1163,1472],["l",1333,1472],["l",1333,0]]},"I":{"xoff":576,"width":192,"height":1472,"hbx":192,"hby":1472,"path":[["m",203,0],["l",203,1472],["l",373,1472],["l",373,0],["l",203,0]]},"J":{"xoff":576,"width":576,"height":1856,"hbx":-192,"hby":1472,"path":[["m",-2,-384],["q",-96,-384,-150,-357],["l",-150,-212],["q",-79,-232,-2,-232],["q",97,-232,148,-171],["q",200,-111,200,2],["l",200,1472],["l",370,1472],["l",370,17],["q",370,-174,274,-279],["q",178,-384,-2,-384]]},"K":{"xoff":1280,"width":1088,"height":1472,"hbx":192,"hby":1472,"path":[["m",1280,0],["l",1076,0],["l",534,714],["l",375,577],["l",375,0],["l",205,0],["l",205,1472],["l",375,1472],["l",375,742],["l",1053,1472],["l",1258,1472],["l",659,833],["l",1280,0]]},"L":{"xoff":1088,"width":896,"height":1472,"hbx":192,"hby":1472,"path":[["m",206,0],["l",206,1472],["l",376,1472],["l",376,154],["l",1040,154],["l",1040,0],["l",206,0]]},"M":{"xoff":1856,"width":1472,"height":1472,"hbx":192,"hby":1472,"path":[["m",851,0],["l",353,1305],["l",345,1305],["q",359,1150,359,936],["l",359,0],["l",202,0],["l",202,1472],["l",458,1472],["l",923,258],["l",932,258],["l",1401,1472],["l",1655,1472],["l",1655,0],["l",1485,0],["l",1485,949],["q",1485,1112,1499,1303],["l",1491,1303],["l",989,0],["l",851,0]]},"N":{"xoff":1536,"width":1152,"height":1472,"hbx":192,"hby":1472,"path":[["m",1336,0],["l",1142,0],["l",349,1235],["l",341,1235],["q",357,1018,357,836],["l",357,0],["l",200,0],["l",200,1472],["l",392,1472],["l",1183,242],["l",1191,242],["q",1189,269,1182,416],["q",1175,564,1177,628],["l",1177,1472],["l",1336,1472],["l",1336,0]]},"O":{"xoff":1600,"width":1472,"height":1472,"hbx":64,"hby":1472,"path":[["m",1475,736],["q",1475,393,1297,196],["q",1119,0,802,0],["q",477,0,301,193],["q",125,386,125,738],["q",125,1088,301,1280],["q",478,1472,804,1472],["q",1120,1472,1297,1276],["q",1475,1081,1475,736],["m",305,736],["q",305,448,432,298],["q",559,149,802,149],["q",1046,149,1170,298],["q",1295,447,1295,736],["q",1295,1023,1171,1171],["q",1047,1320,804,1320],["q",559,1320,432,1170],["q",305,1021,305,736]]},"P":{"xoff":1216,"width":960,"height":1472,"hbx":192,"hby":1472,"path":[["m",1112,1033],["q",1112,804,963,681],["q",814,558,537,558],["l",368,558],["l",368,0],["l",198,0],["l",198,1472],["l",572,1472],["q",1112,1472,1112,1033],["m",368,704],["l",518,704],["q",739,704,837,780],["q",936,857,936,1025],["q",936,1177,843,1251],["q",750,1325,554,1325],["l",368,1325],["l",368,704]]},"Q":{"xoff":1600,"width":1472,"height":1792,"hbx":64,"hby":1472,"path":[["m",1475,736],["q",1475,461,1361,279],["q",1248,98,1041,33],["l",1390,-320],["l",1142,-320],["l",856,2],["l",801,0],["q",477,0,301,193],["q",125,386,125,738],["q",125,1088,301,1280],["q",478,1472,804,1472],["q",1120,1472,1297,1276],["q",1475,1081,1475,736],["m",305,736],["q",305,448,432,298],["q",559,149,802,149],["q",1046,149,1170,298],["q",1295,447,1295,736],["q",1295,1023,1171,1171],["q",1047,1320,804,1320],["q",559,1320,432,1170],["q",305,1021,305,736]]},"R":{"xoff":1280,"width":1088,"height":1472,"hbx":192,"hby":1472,"path":[["m",373,622],["l",373,0],["l",203,0],["l",203,1472],["l",608,1472],["q",880,1472,1010,1369],["q",1140,1267,1140,1061],["q",1140,772,843,671],["l",1245,0],["l",1044,0],["l",685,622],["l",373,622],["m",373,768],["l",610,768],["q",793,768,878,839],["q",964,910,964,1052],["q",964,1196,877,1259],["q",790,1323,598,1323],["l",373,1323],["l",373,768]]},"S":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",1052,401],["q",1052,212,908,106],["q",765,0,519,0],["q",252,0,109,67],["l",109,231],["q",202,193,311,171],["q",420,149,527,149],["q",703,149,791,211],["q",880,274,880,385],["q",880,459,848,506],["q",817,554,743,594],["q",670,635,519,686],["q",309,757,218,855],["q",128,953,128,1111],["q",128,1276,258,1374],["q",388,1472,603,1472],["q",826,1472,1014,1392],["l",959,1244],["q",773,1320,596,1320],["q",457,1320,378,1264],["q",300,1208,300,1109],["q",300,1035,329,987],["q",358,940,426,900],["q",495,860,636,812],["q",874,732,963,640],["q",1052,548,1052,401]]},"T":{"xoff":1152,"width":1152,"height":1472,"hbx":0,"hby":1472,"path":[["m",659,0],["l",489,0],["l",489,1321],["l",18,1321],["l",18,1472],["l",1133,1472],["l",1133,1321],["l",659,1321],["l",659,0]]},"U":{"xoff":1472,"width":1216,"height":1472,"hbx":128,"hby":1472,"path":[["m",1288,1472],["l",1288,532],["q",1288,284,1139,142],["q",990,0,730,0],["q",469,0,326,143],["q",184,286,184,536],["l",184,1472],["l",354,1472],["l",354,525],["q",354,344,452,246],["q",550,149,740,149],["q",922,149,1020,247],["q",1118,345,1118,527],["l",1118,1472],["l",1288,1472]]},"V":{"xoff":1216,"width":1216,"height":1472,"hbx":0,"hby":1472,"path":[["m",1033,1472],["l",1216,1472],["l",690,0],["l",523,0],["l",0,1472],["l",180,1472],["l",515,519],["q",573,355,607,200],["q",642,363,700,525],["l",1033,1472]]},"W":{"xoff":1920,"width":1920,"height":1472,"hbx":0,"hby":1472,"path":[["m",1496,0],["l",1326,0],["l",1027,986],["q",1006,1051,979,1151],["q",953,1251,952,1271],["q",930,1138,881,980],["l",591,0],["l",421,0],["l",27,1472],["l",209,1472],["l",443,562],["q",492,371,514,216],["q",542,400,595,577],["l",861,1472],["l",1043,1472],["l",1322,569],["q",1370,412,1404,216],["q",1423,359,1477,564],["l",1710,1472],["l",1892,1472],["l",1496,0]]},"X":{"xoff":1152,"width":1152,"height":1472,"hbx":0,"hby":1472,"path":[["m",1144,0],["l",956,0],["l",573,647],["l",183,0],["l",8,0],["l",481,769],["l",40,1472],["l",223,1472],["l",577,889],["l",934,1472],["l",1110,1472],["l",669,775],["l",1144,0]]},"Y":{"xoff":1152,"width":1152,"height":1472,"hbx":0,"hby":1472,"path":[["m",576,736],["l",967,1472],["l",1152,1472],["l",661,571],["l",661,0],["l",489,0],["l",489,563],["l",0,1472],["l",187,1472],["l",576,736]]},"Z":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",1071,0],["l",81,0],["l",81,134],["l",843,1319],["l",104,1319],["l",104,1472],["l",1050,1472],["l",1050,1338],["l",288,154],["l",1071,154],["l",1071,0]]},"[":{"xoff":704,"width":576,"height":1792,"hbx":128,"hby":1472,"path":[["m",651,-320],["l",173,-320],["l",173,1472],["l",651,1472],["l",651,1331],["l",341,1331],["l",341,-178],["l",651,-178],["l",651,-320]]},"\\":{"xoff":768,"width":768,"height":1472,"hbx":0,"hby":1472,"path":[["m",190,1472],["l",749,0],["l",579,0],["l",23,1472],["l",190,1472]]},"]":{"xoff":704,"width":576,"height":1792,"hbx":0,"hby":1472,"path":[["m",53,-178],["l",363,-178],["l",363,1331],["l",53,1331],["l",53,1472],["l",531,1472],["l",531,-320],["l",53,-320],["l",53,-178]]},"^":{"xoff":1088,"width":1088,"height":896,"hbx":0,"hby":1472,"path":[["m",48,576],["l",473,1472],["l",570,1472],["l",1038,576],["l",889,576],["l",524,1300],["l",197,576],["l",48,576]]},"_":{"xoff":896,"width":1024,"height":192,"hbx":-64,"hby":-192,"path":[["m",900,-323],["l",-4,-323],["l",-4,-192],["l",900,-192],["l",900,-323]]},"`":{"xoff":1152,"width":448,"height":320,"hbx":320,"hby":1536,"path":[["m",766,1216],["l",659,1216],["q",595,1267,508,1360],["q",422,1454,383,1516],["l",383,1536],["l",581,1536],["q",612,1469,667,1380],["q",723,1292,766,1240],["l",766,1216]]},"a":{"xoff":1152,"width":960,"height":1088,"hbx":64,"hby":1088,"path":[["m",860,0],["l",826,152],["l",818,152],["q",735,63,652,31],["q",570,0,447,0],["q",282,0,188,79],["q",95,159,95,305],["q",95,619,633,634],["l",822,640],["l",822,706],["q",822,831,765,891],["q",709,951,585,951],["q",446,951,271,867],["l",219,994],["q",301,1038,398,1063],["q",496,1088,594,1088],["q",793,1088,888,1003],["q",984,918,984,731],["l",984,0],["l",860,0],["m",480,137],["q",638,137,728,214],["q",818,292,818,432],["l",818,522],["l",649,516],["q",447,509,358,459],["q",269,410,269,305],["q",269,223,324,180],["q",380,137,480,137]]},"b":{"xoff":1280,"width":1088,"height":1536,"hbx":128,"hby":1536,"path":[["m",698,1088],["q",919,1088,1041,946],["q",1164,805,1164,546],["q",1164,287,1040,143],["q",917,0,698,0],["q",589,0,498,38],["q",408,76,346,154],["l",334,154],["l",299,0],["l",180,0],["l",180,1536],["l",346,1536],["l",346,1159],["q",346,1032,338,931],["l",346,931],["q",465,1088,698,1088],["m",676,949],["q",501,949,423,856],["q",346,764,346,546],["q",346,327,425,233],["q",505,139,680,139],["q",837,139,914,244],["q",992,350,992,548],["q",992,750,914,849],["q",837,949,676,949]]},"c":{"xoff":960,"width":832,"height":1088,"hbx":64,"hby":1088,"path":[["m",604,0],["q",370,0,241,140],["q",113,281,113,537],["q",113,801,243,944],["q",374,1088,615,1088],["q",693,1088,771,1071],["q",849,1054,893,1031],["l",843,890],["q",789,912,725,926],["q",662,941,613,941],["q",285,941,285,539],["q",285,349,365,247],["q",445,145,602,145],["q",736,145,877,204],["l",877,57],["q",769,0,604,0]]},"d":{"xoff":1280,"width":1088,"height":1536,"hbx":64,"hby":1536,"path":[["m",943,160],["l",934,160],["q",816,0,582,0],["q",362,0,239,141],["q",117,282,117,541],["q",117,801,240,944],["q",363,1088,582,1088],["q",810,1088,932,933],["l",945,933],["l",938,1012],["l",934,1089],["l",934,1536],["l",1100,1536],["l",1100,0],["l",965,0],["l",943,160],["m",601,139],["q",776,139,855,226],["q",934,314,934,508],["l",934,541],["q",934,761,854,855],["q",774,949,599,949],["q",449,949,369,842],["q",289,735,289,539],["q",289,341,368,240],["q",448,139,601,139]]},"e":{"xoff":1152,"width":1024,"height":1088,"hbx":64,"hby":1088,"path":[["m",641,0],["q",397,0,256,141],["q",115,283,115,535],["q",115,789,246,938],["q",377,1088,598,1088],["q",804,1088,924,956],["q",1045,824,1045,607],["l",1045,505],["l",287,505],["q",292,328,385,236],["q",478,145,647,145],["q",824,145,998,219],["l",998,71],["q",910,33,831,16],["q",752,0,641,0],["m",596,949],["q",463,949,384,867],["q",305,785,291,640],["l",867,640],["q",867,790,796,869],["q",726,949,596,949]]},"f":{"xoff":704,"width":832,"height":1536,"hbx":0,"hby":1536,"path":[["m",673,953],["l",394,953],["l",394,0],["l",228,0],["l",228,953],["l",29,953],["l",29,1028],["l",228,1088],["l",228,1147],["q",228,1536,581,1536],["q",668,1536,785,1501],["l",742,1368],["q",646,1399,578,1399],["q",484,1399,439,1339],["q",394,1280,394,1149],["l",394,1082],["l",673,1082],["l",673,953]]},"g":{"xoff":1152,"width":1152,"height":1600,"hbx":0,"hby":1088,"path":[["m",1102,1088],["l",1102,983],["l",893,959],["q",922,924,944,867],["q",967,810,967,739],["q",967,577,853,480],["q",740,384,541,384],["q",491,384,446,392],["q",337,327,337,229],["q",337,178,375,153],["q",413,128,506,128],["l",706,128],["q",890,128,988,56],["q",1087,-16,1087,-154],["q",1087,-328,937,-420],["q",787,-512,500,-512],["q",279,-512,159,-435],["q",40,-359,40,-220],["q",40,-124,106,-54],["q",172,15,291,40],["q",248,61,218,105],["q",189,149,189,207],["q",189,274,221,323],["q",254,373,325,419],["q",238,453,183,535],["q",128,617,128,722],["q",128,898,239,993],["q",350,1088,554,1088],["q",642,1088,713,1088],["l",1102,1088],["m",200,-216],["q",200,-299,278,-342],["q",356,-385,501,-385],["q",718,-385,822,-326],["q",927,-268,927,-168],["q",927,-85,870,-53],["q",813,-21,655,-21],["l",448,-21],["q",331,-21,265,-71],["q",200,-122,200,-216],["m",292,726],["q",292,615,360,558],["q",428,501,549,501],["q",803,501,803,729],["q",803,967,546,967],["q",424,967,358,906],["q",292,845,292,726]]},"h":{"xoff":1280,"width":1024,"height":1536,"hbx":128,"hby":1536,"path":[["m",946,0],["l",946,690],["q",946,821,883,885],["q",820,949,687,949],["q",509,949,427,857],["q",345,766,345,558],["l",345,0],["l",179,0],["l",179,1536],["l",345,1536],["l",345,1063],["q",345,978,337,922],["l",347,922],["q",397,999,489,1043],["q",582,1088,701,1088],["q",906,1088,1009,994],["q",1112,901,1112,698],["l",1112,0],["l",946,0]]},"i":{"xoff":512,"width":256,"height":1536,"hbx":128,"hby":1536,"path":[["m",340,0],["l",174,0],["l",174,1088],["l",340,1088],["l",340,0],["m",160,1391],["q",160,1448,188,1474],["q",216,1501,258,1501],["q",298,1501,327,1474],["q",356,1447,356,1391],["q",356,1335,327,1307],["q",298,1280,258,1280],["q",216,1280,188,1307],["q",160,1335,160,1391]]},"j":{"xoff":512,"width":512,"height":2048,"hbx":-128,"hby":1536,"path":[["m",41,-512],["q",-54,-512,-113,-487],["l",-113,-352],["q",-44,-372,23,-372],["q",101,-372,137,-329],["q",174,-286,174,-199],["l",174,1088],["l",340,1088],["l",340,-186],["q",340,-512,41,-512],["m",160,1391],["q",160,1448,188,1474],["q",216,1501,258,1501],["q",298,1501,327,1474],["q",356,1447,356,1391],["q",356,1335,327,1307],["q",298,1280,258,1280],["q",216,1280,188,1307],["q",160,1335,160,1391]]},"k":{"xoff":1088,"width":960,"height":1536,"hbx":128,"hby":1536,"path":[["m",342,555],["q",386,616,475,714],["l",834,1088],["l",1034,1088],["l",585,624],["l",1066,0],["l",863,0],["l",471,512],["l",342,405],["l",342,0],["l",178,0],["l",178,1536],["l",342,1536],["l",342,723],["q",342,668,334,555],["l",342,555]]},"l":{"xoff":512,"width":256,"height":1536,"hbx":128,"hby":1536,"path":[["m",340,0],["l",174,0],["l",174,1536],["l",340,1536],["l",340,0]]},"m":{"xoff":1920,"width":1664,"height":1088,"hbx":128,"hby":1088,"path":[["m",1587,0],["l",1587,693],["q",1587,820,1530,883],["q",1474,947,1354,947],["q",1197,947,1122,860],["q",1047,774,1047,594],["l",1047,0],["l",881,0],["l",881,693],["q",881,820,824,883],["q",768,947,647,947],["q",490,947,416,856],["q",343,765,343,558],["l",343,0],["l",177,0],["l",177,1088],["l",312,1088],["l",339,896],["l",347,896],["q",395,986,481,1037],["q",567,1088,674,1088],["q",933,1088,1013,880],["l",1021,880],["q",1071,976,1164,1032],["q",1258,1088,1379,1088],["q",1566,1088,1659,995],["q",1753,902,1753,697],["l",1753,0],["l",1587,0]]},"n":{"xoff":1280,"width":1024,"height":1088,"hbx":128,"hby":1088,"path":[["m",946,0],["l",946,689],["q",946,819,883,883],["q",820,947,687,947],["q",510,947,427,856],["q",345,766,345,558],["l",345,0],["l",179,0],["l",179,1088],["l",314,1088],["l",341,922],["l",349,922],["q",401,1001,495,1044],["q",589,1088,705,1088],["q",907,1088,1009,995],["q",1112,902,1112,697],["l",1112,0],["l",946,0]]},"o":{"xoff":1216,"width":1088,"height":1088,"hbx":64,"hby":1088,"path":[["m",1103,545],["q",1103,288,970,144],["q",838,0,604,0],["q",459,0,347,66],["q",235,132,174,255],["q",113,379,113,545],["q",113,802,244,945],["q",376,1088,610,1088],["q",837,1088,970,941],["q",1103,795,1103,545],["m",285,545],["q",285,347,367,243],["q",449,139,608,139],["q",766,139,848,242],["q",931,346,931,545],["q",931,742,848,844],["q",766,947,606,947],["q",447,947,366,846],["q",285,745,285,545]]},"p":{"xoff":1280,"width":1088,"height":1600,"hbx":128,"hby":1088,"path":[["m",698,0],["q",589,0,498,38],["q",408,76,346,154],["l",334,154],["q",346,53,346,-37],["l",346,-512],["l",180,-512],["l",180,1088],["l",315,1088],["l",338,925],["l",346,925],["q",412,1011,499,1049],["q",586,1088,698,1088],["q",921,1088,1042,945],["q",1164,803,1164,545],["q",1164,286,1040,143],["q",917,0,698,0],["m",676,947],["q",503,947,425,859],["q",348,771,346,580],["l",346,545],["q",346,327,425,233],["q",505,139,680,139],["q",826,139,909,247],["q",992,356,992,547],["q",992,740,909,843],["q",826,947,676,947]]},"q":{"xoff":1280,"width":1088,"height":1600,"hbx":64,"hby":1088,"path":[["m",601,139],["q",772,139,850,223],["q",929,307,934,506],["l",934,541],["q",934,758,853,853],["q",773,949,599,949],["q",449,949,369,842],["q",289,735,289,539],["q",289,344,368,241],["q",447,139,601,139],["m",578,0],["q",361,0,239,142],["q",117,285,117,541],["q",117,799,240,943],["q",363,1088,582,1088],["q",812,1088,936,925],["l",945,925],["l",969,1088],["l",1100,1088],["l",1100,-512],["l",934,-512],["l",934,-19],["q",934,86,945,160],["l",932,160],["q",814,0,578,0]]},"r":{"xoff":832,"width":704,"height":1088,"hbx":128,"hby":1088,"path":[["m",673,1088],["q",745,1088,803,1076],["l",780,922],["q",713,937,661,937],["q",529,937,435,832],["q",341,727,341,571],["l",341,0],["l",175,0],["l",175,1088],["l",312,1088],["l",331,871],["l",339,871],["q",400,975,485,1031],["q",570,1088,673,1088]]},"s":{"xoff":960,"width":832,"height":1088,"hbx":64,"hby":1088,"path":[["m",868,306],["q",868,159,756,79],["q",644,0,441,0],["q",227,0,107,59],["l",107,192],["q",184,166,272,151],["q",361,137,444,137],["q",571,137,639,175],["q",708,214,708,292],["q",708,353,653,396],["q",599,440,442,500],["q",292,554,229,595],["q",166,636,135,687],["q",104,739,104,811],["q",104,940,211,1014],["q",318,1088,505,1088],["q",679,1088,845,1016],["l",787,881],["q",626,949,495,949],["q",379,949,320,915],["q",262,881,262,822],["q",262,780,284,750],["q",306,720,355,693],["q",404,667,543,616],["q",734,548,801,479],["q",868,410,868,306]]},"t":{"xoff":704,"width":704,"height":1344,"hbx":0,"hby":1344,"path":[["m",518,137],["q",560,137,599,143],["q",639,150,662,157],["l",662,30],["q",636,17,584,8],["q",533,0,493,0],["q",183,0,183,325],["l",183,959],["l",30,959],["l",30,1039],["l",185,1109],["l",254,1344],["l",349,1344],["l",349,1088],["l",654,1088],["l",654,959],["l",349,959],["l",349,335],["q",349,240,394,188],["q",439,137,518,137]]},"u":{"xoff":1280,"width":1024,"height":1088,"hbx":128,"hby":1088,"path":[["m",335,1088],["l",335,397],["q",335,267,398,203],["q",461,139,594,139],["q",771,139,853,230],["q",935,322,935,529],["l",935,1088],["l",1101,1088],["l",1101,0],["l",964,0],["l",940,163],["l",931,163],["q",879,84,786,42],["q",694,0,575,0],["q",370,0,268,92],["q",167,185,167,389],["l",167,1088],["l",335,1088]]},"v":{"xoff":1024,"width":1024,"height":1088,"hbx":0,"hby":1088,"path":[["m",415,0],["l",0,1088],["l",178,1088],["l",413,443],["q",493,216,507,149],["l",515,149],["q",526,202,584,367],["q",643,532,846,1088],["l",1024,1088],["l",609,0],["l",415,0]]},"w":{"xoff":1600,"width":1600,"height":1088,"hbx":0,"hby":1088,"path":[["m",1076,0],["l",874,638],["q",855,697,803,904],["l",794,904],["q",754,730,724,636],["l",516,0],["l",323,0],["l",23,1088],["l",198,1088],["q",304,678,360,463],["q",416,249,424,175],["l",432,175],["q",443,232,467,321],["q",492,411,510,464],["l",712,1088],["l",893,1088],["l",1090,464],["q",1146,293,1166,177],["l",1174,177],["q",1178,213,1195,287],["q",1213,362,1405,1088],["l",1578,1088],["l",1274,0],["l",1076,0]]},"x":{"xoff":1088,"width":1088,"height":1088,"hbx":0,"hby":1088,"path":[["m",446,557],["l",60,1088],["l",252,1088],["l",545,671],["l",836,1088],["l",1026,1088],["l",640,557],["l",1046,0],["l",855,0],["l",544,441],["l",233,0],["l",45,0],["l",446,557]]},"y":{"xoff":1024,"width":1024,"height":1600,"hbx":0,"hby":1088,"path":[["m",2,1088],["l",179,1088],["l",417,458],["q",495,243,514,147],["l",522,147],["q",535,198,576,322],["q",617,447,845,1088],["l",1022,1088],["l",555,-169],["q",485,-356,392,-434],["q",300,-512,165,-512],["q",89,-512,16,-495],["l",16,-362],["q",71,-374,139,-374],["q",310,-374,383,-180],["l",444,-23],["l",2,1088]]},"z":{"xoff":960,"width":832,"height":1088,"hbx":64,"hby":1088,"path":[["m",879,0],["l",82,0],["l",82,112],["l",682,959],["l",119,959],["l",119,1088],["l",864,1088],["l",864,960],["l",272,129],["l",879,129],["l",879,0]]},"{":{"xoff":768,"width":704,"height":1792,"hbx":0,"hby":1472,"path":[["m",472,17],["q",472,-85,529,-131],["q",587,-178,698,-180],["l",698,-320],["q",510,-318,407,-232],["q",304,-147,304,7],["l",304,311],["q",304,415,241,460],["q",179,505,60,505],["l",60,646],["q",189,648,246,694],["q",304,741,304,837],["l",304,1144],["q",304,1299,411,1385],["q",518,1472,698,1472],["l",698,1333],["q",472,1327,472,1133],["l",472,837],["q",472,621,251,582],["l",251,570],["q",472,531,472,315],["l",472,17]]},"|":{"xoff":1152,"width":256,"height":2048,"hbx":448,"hby":1536,"path":[["m",505,1536],["l",646,1536],["l",646,-512],["l",505,-512],["l",505,1536]]},"}":{"xoff":768,"width":704,"height":1792,"hbx":64,"hby":1472,"path":[["m",515,582],["q",296,621,296,837],["l",296,1133],["q",296,1327,71,1333],["l",71,1472],["q",254,1472,359,1384],["q",464,1297,464,1144],["l",464,837],["q",464,740,522,694],["q",580,648,708,646],["l",708,505],["q",588,505,526,460],["q",464,415,464,311],["l",464,7],["q",464,-146,362,-232],["q",260,-318,71,-320],["l",71,-180],["q",181,-178,238,-131],["q",296,-85,296,17],["l",296,315],["q",296,430,350,490],["q",404,550,515,570],["l",515,582]]},"~":{"xoff":1152,"width":1024,"height":256,"hbx":64,"hby":832,"path":[["m",332,693],["q",280,693,217,660],["q",155,628,102,576],["l",102,725],["q",200,832,342,832],["q",409,832,464,818],["q",520,805,608,768],["q",673,741,721,728],["q",769,715,816,715],["q",869,715,932,746],["q",995,777,1048,832],["l",1048,684],["q",948,576,808,576],["q",737,576,675,592],["q",613,608,542,639],["q",468,670,424,681],["q",380,693,332,693]]}},"exporter":"SimpleJson","version":"0.0.3"};
-
 },{}],22:[function(require,module,exports){
-// module.exports.pointsToPixels = function(pointSize, resolution) {
-// 	resolution = typeof resolution === "number" ? resolution : 72;
-// 	return pointSize * resolution / 72;
-// };
-
-// module.exports.coordToPixel = function(coord, pixelSize, emSize) {
-// 	emSize = typeof emSize === "number" ? emSize : 2048;
-// 	return coord * pixelSize / emSize;
-// };
-
-/**
- * Converts a pt size to px size, namely useful for matching
- * size with CSS styles. If no DPI is specified, 96 is assumed
- * (as it leads to correct rendering in all browsers).
- * 
- * @param  {Number} fontSize the desired font size in points
- * @param  {Number} dpi      the expected DPI, generally 96 for browsers
- * @return {Number}          the rounded pixel font size
- */
-module.exports.pointToPixel = function(fontSize, dpi) {
-    dpi = dpi||dpi===0 ? dpi : 96;
-    fontSize = fontSize * dpi / 72;
-    return Math.round(fontSize);
-};
-
-/**
- * For the given font and (pixel) font size, this method returns the
- * scale that will need to be applied to EM units (i.e. font paths) 
- * to have the font render at the expected size (i.e. to match the browser).
- *
- * If no font size is specified, we will use the default font size (which is in points)
- * and convert it to pixels. 
- * 
- * @param  {Font} font     a font object from the fontpath tool
- * @param  {Number} fontSize the desired font size, defaults to the font's default size
- * @return {Number} returns the scale for this font size         
- */
-module.exports.getPxScale = function(font, fontSize) {
-    //If no fontSize is specified, it will just fall back to using the font's own size with 96 DPI.
-    fontSize = typeof fontSize === "number" ? fontSize : this.pointToPixel(font.size);
-
-    //Takes in a font size in PIXELS and gives us the expected scaling factor
-    var sz = font.units_per_EM/64;
-    sz = (sz/font.size * fontSize);
-
-    return ((font.resolution * 1/72 * sz) / font.units_per_EM);
-};
-
-/**
- * For the given font and (point) font size, this method returns the
- * scale that will need to be applied to EM units (i.e. font paths) 
- * to have the font render at the expected size (i.e. to match the browser).
- * 
- * If no font size is specified, we will use the default font size.
- * 
- * @param  {Font} font       a font object from the fontpath tool
- * @param  {Number} fontSize the desired font size, defaults to the font's default size
- * @return {Number}          the scale for this font size
- */
-module.exports.getPtScale = function(font, fontSize) {
-    fontSize = typeof fontSize === "number" ? fontSize : font.size;
-    fontSize = this.pointToPixel(fontSize);
-    return this.getPxScale(font, fontSize);
-};
+module.exports = {"size":32,"resolution":72,"underline_thickness":102,"underline_position":-205,"max_advance_width":2476,"height":2789,"descender":-600,"ascender":2189,"units_per_EM":2048,"style_name":"Regular","family_name":"Open Sans","kerning":[["\"","A",-128],["\"","T",64],["\"","V",64],["\"","W",64],["\"","a",-64],["\"","c",-128],["\"","d",-128],["\"","e",-128],["\"","g",-64],["\"","m",-64],["\"","n",-64],["\"","o",-128],["\"","p",-64],["\"","q",-128],["\"","r",-64],["\"","s",-64],["\"","u",-64],["'","A",-128],["'","T",64],["'","V",64],["'","W",64],["'","a",-64],["'","c",-128],["'","d",-128],["'","e",-128],["'","g",-64],["'","m",-64],["'","n",-64],["'","o",-128],["'","p",-64],["'","q",-128],["'","r",-64],["'","s",-64],["'","u",-64],["(","J",192],[",","C",-128],[",","G",-128],[",","O",-128],[",","Q",-128],[",","T",-128],[",","U",-64],[",","V",-128],[",","W",-128],[",","Y",-128],["-","T",-64],[".","C",-128],[".","G",-128],[".","O",-128],[".","Q",-128],[".","T",-128],[".","U",-64],[".","V",-128],[".","W",-128],[".","Y",-128],["A","\"",-128],["A","'",-128],["A","C",-64],["A","G",-64],["A","J",256],["A","O",-64],["A","Q",-64],["A","T",-128],["A","V",-64],["A","W",-64],["A","Y",-128],["B",",",-64],["B",".",-64],["B","A",-64],["B","T",-64],["B","X",-64],["C","C",-64],["C","G",-64],["C","O",-64],["C","Q",-64],["D",",",-64],["D",".",-64],["D","A",-64],["D","T",-64],["D","X",-64],["E","J",128],["F",",",-128],["F",".",-128],["F","?",64],["F","A",-64],["K","C",-64],["K","G",-64],["K","O",-64],["K","Q",-64],["L","\"",-192],["L","'",-192],["L","C",-64],["L","G",-64],["L","O",-64],["L","Q",-64],["L","T",-64],["L","V",-64],["L","W",-64],["L","Y",-64],["O",",",-64],["O",".",-64],["O","A",-64],["O","T",-64],["O","X",-64],["P",",",-256],["P",".",-256],["P","A",-128],["P","X",-64],["Q",",",-64],["Q",".",-64],["Q","A",-64],["Q","T",-64],["Q","X",-64],["T",",",-128],["T","-",-64],["T",".",-128],["T","?",64],["T","A",-128],["T","C",-64],["T","G",-64],["T","O",-64],["T","Q",-64],["T","T",64],["T","a",-192],["T","c",-128],["T","d",-128],["T","e",-128],["T","g",-128],["T","m",-128],["T","n",-128],["T","o",-128],["T","p",-128],["T","q",-128],["T","r",-128],["T","s",-128],["T","u",-128],["T","v",-64],["T","w",-64],["T","x",-64],["T","y",-64],["T","z",-64],["U",",",-64],["U",".",-64],["V",",",-128],["V",".",-128],["V","?",64],["V","A",-64],["V","a",-64],["V","c",-64],["V","d",-64],["V","e",-64],["V","o",-64],["V","q",-64],["W",",",-128],["W",".",-128],["W","?",64],["W","A",-64],["W","a",-64],["W","c",-64],["W","d",-64],["W","e",-64],["W","o",-64],["W","q",-64],["X","C",-64],["X","G",-64],["X","O",-64],["X","Q",-64],["Y",",",-128],["Y",".",-128],["Y","?",64],["Y","A",-128],["Y","C",-64],["Y","G",-64],["Y","O",-64],["Y","Q",-64],["Y","a",-128],["Y","c",-128],["Y","d",-128],["Y","e",-128],["Y","g",-64],["Y","m",-64],["Y","n",-64],["Y","o",-128],["Y","p",-64],["Y","q",-128],["Y","r",-64],["Y","s",-64],["Y","u",-64],["Y","z",-64],["[","J",192],["b","v",-64],["b","w",-64],["b","x",-64],["b","y",-64],["c","\"",64],["c","'",64],["e","v",-64],["e","w",-64],["e","x",-64],["e","y",-64],["f","\"",128],["f","'",128],["k","c",-64],["k","d",-64],["k","e",-64],["k","o",-64],["k","q",-64],["o","v",-64],["o","w",-64],["o","x",-64],["o","y",-64],["p","v",-64],["p","w",-64],["p","x",-64],["p","y",-64],["r","\"",64],["r","'",64],["r","a",-64],["r","c",-64],["r","d",-64],["r","e",-64],["r","o",-64],["r","q",-64],["t","\"",64],["t","'",64],["v","\"",64],["v","'",64],["v",",",-64],["v",".",-64],["v","?",64],["w","\"",64],["w","'",64],["w",",",-64],["w",".",-64],["w","?",64],["x","c",-64],["x","d",-64],["x","e",-64],["x","o",-64],["x","q",-64],["y","\"",64],["y","'",64],["y",",",-64],["y",".",-64],["y","?",64],["{","J",192]],"glyphs":{"0":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",1052,736],["q",1052,366,934,183],["q",817,0,575,0],["q",342,0,221,187],["q",100,375,100,736],["q",100,1110,217,1291],["q",334,1472,575,1472],["q",809,1472,930,1283],["q",1052,1094,1052,736],["m",268,736],["q",268,426,341,284],["q",414,143,575,143],["q",737,143,809,286],["q",882,430,882,736],["q",882,1043,809,1185],["q",737,1328,575,1328],["q",414,1328,341,1187],["q",268,1047,268,736]]},"1":{"xoff":1152,"width":640,"height":1472,"hbx":128,"hby":1472,"path":[["m",706,0],["l",544,0],["l",544,1060],["q",544,1192,552,1310],["q",531,1290,505,1269],["q",480,1248,272,1088],["l",185,1194],["l",566,1472],["l",706,1472],["l",706,0]]},"2":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",1044,0],["l",98,0],["l",98,142],["l",476,526],["q",648,702,703,777],["q",758,853,785,924],["q",813,996,813,1078],["q",813,1194,743,1262],["q",674,1330,550,1330],["q",461,1330,381,1300],["q",301,1270,203,1191],["l",117,1304],["q",316,1472,550,1472],["q",753,1472,868,1367],["q",983,1263,983,1086],["q",983,948,906,813],["q",830,679,621,472],["l",307,162],["l",307,154],["l",1044,154],["l",1044,0]]},"3":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",990,1115],["q",990,978,913,891],["q",836,804,694,775],["l",694,767],["q",867,746,950,657],["q",1034,569,1034,426],["q",1034,221,891,110],["q",749,0,486,0],["q",372,0,277,17],["q",182,35,92,79],["l",92,237],["q",185,190,290,165],["q",396,141,490,141],["q",862,141,862,430],["q",862,689,453,689],["l",312,689],["l",312,832],["l",455,832],["q",622,832,720,905],["q",818,978,818,1108],["q",818,1212,746,1271],["q",674,1330,550,1330],["q",456,1330,372,1304],["q",289,1278,182,1208],["l",100,1320],["q",189,1391,304,1431],["q",420,1472,548,1472],["q",758,1472,874,1376],["q",990,1281,990,1115]]},"4":{"xoff":1152,"width":1152,"height":1472,"hbx":0,"hby":1472,"path":[["m",1112,361],["l",901,361],["l",901,0],["l",742,0],["l",742,361],["l",42,361],["l",42,503],["l",725,1472],["l",901,1472],["l",901,512],["l",1112,512],["l",1112,361],["m",742,512],["l",742,987],["q",742,1126,752,1302],["l",744,1302],["q",697,1208,656,1147],["l",208,512],["l",742,512]]},"5":{"xoff":1152,"width":960,"height":1472,"hbx":128,"hby":1472,"path":[["m",550,896],["q",776,896,906,783],["q",1036,671,1036,476],["q",1036,253,894,126],["q",752,0,502,0],["q",259,0,131,79],["l",131,239],["q",200,194,301,168],["q",403,143,502,143],["q",675,143,770,224],["q",866,305,866,457],["q",866,755,498,755],["q",405,755,249,726],["l",165,781],["l",219,1472],["l",935,1472],["l",935,1319],["l",361,1319],["l",325,873],["q",438,896,550,896]]},"6":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",115,632],["q",115,1054,279,1263],["q",444,1472,767,1472],["q",878,1472,942,1453],["l",942,1310],["q",867,1335,770,1335],["q",540,1335,418,1189],["q",297,1043,285,730],["l",297,730],["q",405,896,638,896],["q",831,896,942,781],["q",1054,667,1054,471],["q",1054,251,931,125],["q",809,0,600,0],["q",377,0,246,167],["q",115,334,115,632],["m",598,141],["q",737,141,813,225],["q",890,310,890,471],["q",890,608,819,686],["q",748,765,606,765],["q",518,765,445,730],["q",372,695,328,633],["q",285,572,285,506],["q",285,408,324,323],["q",363,239,435,190],["q",507,141,598,141]]},"7":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",280,0],["l",874,1319],["l",92,1319],["l",92,1472],["l",1050,1472],["l",1050,1338],["l",461,0],["l",280,0]]},"8":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",575,1472],["q",771,1472,886,1379],["q",1001,1287,1001,1124],["q",1001,1017,935,928],["q",869,840,725,768],["q",900,686,974,595],["q",1048,505,1048,386],["q",1048,210,923,105],["q",798,0,580,0],["q",350,0,226,99],["q",102,198,102,380],["q",102,623,403,758],["q",268,835,209,925],["q",150,1015,150,1126],["q",150,1284,265,1378],["q",381,1472,575,1472],["m",266,378],["q",266,263,347,199],["q",429,135,576,135],["q",722,135,803,202],["q",884,269,884,385],["q",884,478,808,550],["q",732,622,542,690],["q",397,629,331,555],["q",266,481,266,378],["m",573,1337],["q",451,1337,382,1277],["q",313,1218,313,1119],["q",313,1028,370,962],["q",428,897,582,832],["q",721,891,779,959],["q",837,1028,837,1119],["q",837,1219,766,1278],["q",696,1337,573,1337]]},"9":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",1044,840],["q",1044,0,391,0],["q",277,0,210,20],["l",210,163],["q",288,137,388,137],["q",623,137,743,285],["q",863,433,874,739],["l",862,739],["q",808,659,719,617],["q",630,576,518,576],["q",328,576,216,687],["q",104,799,104,999],["q",104,1218,229,1345],["q",355,1472,560,1472],["q",706,1472,816,1397],["q",926,1322,985,1178],["q",1044,1035,1044,840],["m",560,1330],["q",420,1330,344,1243],["q",268,1156,268,1001],["q",268,865,338,787],["q",409,709,552,709],["q",641,709,715,744],["q",790,779,833,839],["q",876,900,876,966],["q",876,1065,836,1149],["q",796,1234,724,1282],["q",653,1330,560,1330]]}," ":{"xoff":512,"width":0,"height":0,"hbx":0,"hby":0,"path":[]},"!":{"xoff":576,"width":320,"height":1472,"hbx":128,"hby":1472,"path":[["m",334,448],["l",229,448],["l",178,1472],["l",385,1472],["l",334,448],["m",160,135],["q",160,271,280,271],["q",338,271,369,236],["q",401,201,401,135],["q",401,71,369,35],["q",337,0,280,0],["q",228,0,194,31],["q",160,63,160,135]]},"\"":{"xoff":832,"width":576,"height":512,"hbx":128,"hby":1472,"path":[["m",321,1472],["l",281,960],["l",176,960],["l",135,1472],["l",321,1472],["m",697,1472],["l",656,960],["l",552,960],["l",511,1472],["l",697,1472]]},"#":{"xoff":1344,"width":1344,"height":1472,"hbx":0,"hby":1472,"path":[["m",996,897],["l",928,576],["l",1215,576],["l",1215,447],["l",904,447],["l",818,0],["l",681,0],["l",767,447],["l",457,447],["l",373,0],["l",237,0],["l",319,447],["l",55,447],["l",55,576],["l",344,576],["l",414,897],["l",133,897],["l",133,1024],["l",436,1024],["l",520,1472],["l",659,1472],["l",575,1024],["l",887,1024],["l",973,1472],["l",1107,1472],["l",1021,1024],["l",1287,1024],["l",1287,897],["l",996,897],["m",481,576],["l",791,576],["l",859,897],["l",549,897],["l",481,576]]},"$":{"xoff":1152,"width":896,"height":1664,"hbx":128,"hby":1536,"path":[["m",1019,412],["q",1019,275,919,185],["q",820,96,641,73],["l",641,-128],["l",512,-128],["l",512,64],["q",402,64,298,81],["q",195,99,129,130],["l",129,286],["q",211,249,317,225],["q",424,202,512,202],["l",512,649],["q",310,714,229,801],["q",148,888,148,1025],["q",148,1157,248,1241],["q",348,1326,512,1344],["l",512,1536],["l",641,1536],["l",641,1346],["q",821,1341,988,1272],["l",937,1141],["q",792,1200,641,1211],["l",641,772],["q",794,721,870,673],["q",947,626,983,563],["q",1019,501,1019,412],["m",849,399],["q",849,473,806,518],["q",764,563,641,608],["l",641,212],["q",849,243,849,399],["m",317,1027],["q",317,950,360,903],["q",404,857,512,815],["l",512,1207],["q",416,1191,366,1144],["q",317,1097,317,1027]]},"%":{"xoff":1664,"width":1536,"height":1472,"hbx":64,"hby":1472,"path":[["m",241,1026],["q",241,861,277,779],["q",313,697,394,697],["q",554,697,554,1026],["q",554,1353,394,1353],["q",313,1353,277,1271],["q",241,1190,241,1026],["m",691,1026],["q",691,803,615,689],["q",540,576,394,576],["q",256,576,179,692],["q",103,808,103,1026],["q",103,1248,176,1360],["q",250,1472,394,1472],["q",537,1472,614,1356],["q",691,1240,691,1026],["m",1109,449],["q",1109,284,1145,202],["q",1181,120,1263,120],["q",1345,120,1384,201],["q",1423,282,1423,449],["q",1423,615,1384,695],["q",1345,775,1263,775],["q",1181,775,1145,695],["q",1109,615,1109,449],["m",1560,449],["q",1560,228,1484,114],["q",1409,0,1263,0],["q",1123,0,1047,116],["q",972,233,972,449],["q",972,671,1045,783],["q",1119,896,1263,896],["q",1403,896,1481,781],["q",1560,666,1560,449],["m",1306,1472],["l",505,0],["l",360,0],["l",1161,1472],["l",1306,1472]]},"&":{"xoff":1472,"width":1408,"height":1472,"hbx":64,"hby":1472,"path":[["m",410,1156],["q",410,1086,445,1022],["q",480,959,565,870],["q",690,946,739,1010],["q",788,1075,788,1159],["q",788,1237,738,1286],["q",688,1335,604,1335],["q",518,1335,464,1286],["q",410,1238,410,1156],["m",562,149],["q",798,149,954,275],["l",525,687],["q",416,624,371,582],["q",326,541,304,493],["q",283,446,283,385],["q",283,277,359,213],["q",435,149,562,149],["m",111,380],["q",111,504,179,599],["q",248,694,425,791],["q",341,887,311,936],["q",281,986,263,1039],["q",246,1093,246,1151],["q",246,1302,342,1387],["q",439,1472,611,1472],["q",771,1472,862,1387],["q",954,1303,954,1153],["q",954,1045,887,953],["q",820,862,666,768],["l",1065,386],["q",1120,446,1152,527],["q",1185,608,1208,704],["l",1376,704],["q",1309,427,1174,283],["l",1468,0],["l",1242,0],["l",1060,173],["q",944,80,824,40],["q",704,0,556,0],["q",344,0,227,101],["q",111,202,111,380]]},"'":{"xoff":448,"width":192,"height":512,"hbx":128,"hby":1472,"path":[["m",318,1472],["l",278,960],["l",173,960],["l",132,1472],["l",318,1472]]},"(":{"xoff":576,"width":512,"height":1792,"hbx":64,"hby":1472,"path":[["m",78,568],["q",78,834,151,1065],["q",225,1297,364,1472],["l",518,1472],["q",385,1278,318,1046],["q",252,815,252,570],["q",252,329,320,99],["q",388,-130,516,-320],["l",364,-320],["q",224,-149,151,78],["q",78,306,78,568]]},")":{"xoff":576,"width":512,"height":1792,"hbx":0,"hby":1472,"path":[["m",498,568],["q",498,304,424,76],["q",351,-151,212,-320],["l",60,-320],["q",188,-131,256,99],["q",324,329,324,570],["q",324,815,257,1046],["q",191,1278,58,1472],["l",212,1472],["q",352,1296,425,1064],["q",498,832,498,568]]},"*":{"xoff":1152,"width":1024,"height":896,"hbx":64,"hby":1536,"path":[["m",669,1536],["l",626,1150],["l",1032,1259],["l",1058,1080],["l",670,1050],["l",923,732],["l",748,640],["l",568,994],["l",405,640],["l",225,732],["l",472,1050],["l",88,1080],["l",118,1259],["l",516,1150],["l",473,1536],["l",669,1536]]},"+":{"xoff":1152,"width":1024,"height":1024,"hbx":64,"hby":1216,"path":[["m",645,768],["l",1057,768],["l",1057,630],["l",645,630],["l",645,204],["l",506,204],["l",506,630],["l",96,630],["l",96,768],["l",506,768],["l",506,1196],["l",645,1196],["l",645,768]]},",":{"xoff":512,"width":320,"height":512,"hbx":64,"hby":256,"path":[["m",357,256],["l",372,233],["q",346,131,296,-4],["q",246,-140,192,-256],["l",64,-256],["q",92,-150,125,6],["q",158,162,171,256],["l",357,256]]},"-":{"xoff":640,"width":512,"height":192,"hbx":64,"hby":640,"path":[["m",82,488],["l",82,640],["l",558,640],["l",558,488],["l",82,488]]},".":{"xoff":576,"width":320,"height":320,"hbx":128,"hby":320,"path":[["m",161,135],["q",161,202,191,236],["q",222,271,279,271],["q",337,271,369,236],["q",402,202,402,135],["q",402,70,369,35],["q",336,0,279,0],["q",228,0,194,31],["q",161,63,161,135]]},"/":{"xoff":768,"width":768,"height":1472,"hbx":0,"hby":1472,"path":[["m",747,1472],["l",190,0],["l",20,0],["l",577,1472],["l",747,1472]]},":":{"xoff":576,"width":320,"height":1088,"hbx":128,"hby":1088,"path":[["m",161,135],["q",161,202,191,236],["q",222,271,279,271],["q",337,271,369,236],["q",402,202,402,135],["q",402,70,369,35],["q",336,0,279,0],["q",228,0,194,31],["q",161,63,161,135],["m",161,953],["q",161,1088,279,1088],["q",402,1088,402,953],["q",402,888,369,853],["q",336,818,279,818],["q",228,818,194,849],["q",161,881,161,953]]},";":{"xoff":576,"width":384,"height":1344,"hbx":64,"hby":1088,"path":[["m",358,256],["l",373,233],["q",347,131,298,-4],["q",249,-140,196,-256],["l",71,-256],["q",98,-150,130,6],["q",163,162,176,256],["l",358,256],["m",155,953],["q",155,1088,274,1088],["q",397,1088,397,953],["q",397,888,364,853],["q",331,818,274,818],["q",216,818,185,853],["q",155,888,155,953]]},"<":{"xoff":1152,"width":1024,"height":960,"hbx":64,"hby":1216,"path":[["m",1048,256],["l",102,662],["l",102,756],["l",1048,1216],["l",1048,1073],["l",278,716],["l",1048,401],["l",1048,256]]},"=":{"xoff":1152,"width":1024,"height":576,"hbx":64,"hby":1024,"path":[["m",117,887],["l",117,1024],["l",1032,1024],["l",1032,887],["l",117,887],["m",117,448],["l",117,585],["l",1032,585],["l",1032,448],["l",117,448]]},">":{"xoff":1152,"width":1024,"height":960,"hbx":64,"hby":1216,"path":[["m",102,401],["l",873,714],["l",102,1073],["l",102,1216],["l",1048,756],["l",1048,662],["l",102,256],["l",102,401]]},"?":{"xoff":896,"width":896,"height":1472,"hbx":0,"hby":1472,"path":[["m",295,448],["l",295,499],["q",295,609,332,680],["q",369,751,470,830],["q",609,938,645,992],["q",682,1047,682,1124],["q",682,1220,615,1272],["q",548,1324,422,1324],["q",341,1324,264,1305],["q",188,1287,88,1238],["l",28,1373],["q",221,1472,430,1472],["q",625,1472,733,1383],["q",841,1294,841,1132],["q",841,1062,821,1009],["q",801,957,762,910],["q",723,863,594,759],["q",491,677,457,623],["q",424,569,424,479],["l",424,448],["l",295,448],["m",245,135],["q",245,271,365,271],["q",423,271,454,236],["q",486,201,486,135],["q",486,71,454,35],["q",422,0,365,0],["q",313,0,279,31],["q",245,63,245,135]]},"@":{"xoff":1856,"width":1728,"height":1664,"hbx":64,"hby":1472,"path":[["m",1734,717],["q",1734,570,1689,448],["q",1645,326,1564,259],["q",1484,192,1380,192],["q",1293,192,1233,247],["q",1174,303,1163,389],["l",1155,389],["q",1115,296,1039,244],["q",964,192,861,192],["q",710,192,624,301],["q",539,411,539,598],["q",539,816,658,952],["q",777,1088,970,1088],["q",1039,1088,1125,1074],["q",1212,1061,1282,1037],["l",1257,531],["l",1257,507],["q",1257,315,1391,315],["q",1484,315,1541,427],["q",1599,539,1599,718],["q",1599,907,1524,1048],["q",1450,1190,1312,1266],["q",1174,1343,995,1343],["q",770,1343,603,1249],["q",437,1156,349,982],["q",261,808,261,580],["q",261,271,423,105],["q",586,-61,892,-61],["q",1104,-61,1332,25],["l",1332,-108],["q",1138,-192,892,-192],["q",526,-192,324,9],["q",122,211,122,573],["q",122,836,230,1041],["q",338,1247,537,1359],["q",737,1472,995,1472],["q",1212,1472,1381,1378],["q",1550,1285,1642,1113],["q",1734,941,1734,717],["m",690,593],["q",690,315,888,315],["q",1098,315,1116,658],["l",1130,943],["q",1057,965,971,965],["q",839,965,764,866],["q",690,768,690,593]]},"A":{"xoff":1280,"width":1280,"height":1472,"hbx":0,"hby":1472,"path":[["m",1104,0],["l",925,487],["l",349,487],["l",172,0],["l",0,0],["l",571,1472],["l",712,1472],["l",1280,0],["l",1104,0],["m",873,640],["l",706,1083],["q",673,1168,639,1290],["q",617,1196,577,1083],["l",408,640],["l",873,640]]},"B":{"xoff":1344,"width":1088,"height":1472,"hbx":192,"hby":1472,"path":[["m",204,1472],["l",622,1472],["q",917,1472,1048,1383],["q",1180,1294,1180,1103],["q",1180,970,1106,884],["q",1033,798,892,772],["l",892,762],["q",1230,705,1230,414],["q",1230,219,1096,109],["q",962,0,721,0],["l",204,0],["l",204,1472],["m",374,832],["l",659,832],["q",843,832,923,890],["q",1004,948,1004,1086],["q",1004,1213,914,1269],["q",825,1325,629,1325],["l",374,1325],["l",374,832],["m",374,688],["l",374,145],["l",685,145],["q",865,145,956,213],["q",1048,281,1048,426],["q",1048,561,954,624],["q",861,688,671,688],["l",374,688]]},"C":{"xoff":1280,"width":1216,"height":1472,"hbx":64,"hby":1472,"path":[["m",820,1320],["q",582,1320,444,1163],["q",306,1007,306,736],["q",306,456,439,303],["q",572,151,818,151],["q",969,151,1163,206],["l",1163,57],["q",1012,0,792,0],["q",472,0,298,192],["q",124,384,124,737],["q",124,959,207,1125],["q",291,1292,449,1382],["q",608,1472,822,1472],["q",1050,1472,1220,1388],["l",1149,1242],["q",985,1320,820,1320]]},"D":{"xoff":1472,"width":1216,"height":1472,"hbx":192,"hby":1472,"path":[["m",1349,750],["q",1349,386,1155,193],["q",961,0,597,0],["l",198,0],["l",198,1472],["l",640,1472],["q",976,1472,1162,1281],["q",1349,1091,1349,750],["m",1169,744],["q",1169,1033,1028,1179],["q",888,1325,610,1325],["l",368,1325],["l",368,147],["l",571,147],["q",869,147,1019,298],["q",1169,449,1169,744]]},"E":{"xoff":1152,"width":896,"height":1472,"hbx":192,"hby":1472,"path":[["m",1028,0],["l",203,0],["l",203,1472],["l",1028,1472],["l",1028,1321],["l",373,1321],["l",373,832],["l",988,832],["l",988,682],["l",373,682],["l",373,152],["l",1028,152],["l",1028,0]]},"F":{"xoff":1088,"width":896,"height":1472,"hbx":192,"hby":1472,"path":[["m",377,0],["l",207,0],["l",207,1472],["l",1046,1472],["l",1046,1321],["l",377,1321],["l",377,768],["l",1006,768],["l",1006,617],["l",377,617],["l",377,0]]},"G":{"xoff":1472,"width":1280,"height":1472,"hbx":64,"hby":1472,"path":[["m",833,768],["l",1324,768],["l",1324,73],["q",1209,37,1090,18],["q",972,0,816,0],["q",488,0,305,193],["q",123,387,123,736],["q",123,959,213,1127],["q",304,1295,473,1383],["q",643,1472,871,1472],["q",1103,1472,1302,1386],["l",1237,1236],["q",1042,1320,862,1320],["q",599,1320,451,1165],["q",303,1010,303,735],["q",303,447,445,298],["q",587,149,862,149],["q",1012,149,1154,183],["l",1154,616],["l",833,616],["l",833,768]]},"H":{"xoff":1536,"width":1152,"height":1472,"hbx":192,"hby":1472,"path":[["m",1333,0],["l",1163,0],["l",1163,680],["l",374,680],["l",374,0],["l",204,0],["l",204,1472],["l",374,1472],["l",374,832],["l",1163,832],["l",1163,1472],["l",1333,1472],["l",1333,0]]},"I":{"xoff":576,"width":192,"height":1472,"hbx":192,"hby":1472,"path":[["m",203,0],["l",203,1472],["l",373,1472],["l",373,0],["l",203,0]]},"J":{"xoff":576,"width":576,"height":1856,"hbx":-192,"hby":1472,"path":[["m",-2,-384],["q",-96,-384,-150,-357],["l",-150,-212],["q",-79,-232,-2,-232],["q",97,-232,148,-171],["q",200,-111,200,2],["l",200,1472],["l",370,1472],["l",370,17],["q",370,-174,274,-279],["q",178,-384,-2,-384]]},"K":{"xoff":1280,"width":1088,"height":1472,"hbx":192,"hby":1472,"path":[["m",1280,0],["l",1076,0],["l",534,714],["l",375,577],["l",375,0],["l",205,0],["l",205,1472],["l",375,1472],["l",375,742],["l",1053,1472],["l",1258,1472],["l",659,833],["l",1280,0]]},"L":{"xoff":1088,"width":896,"height":1472,"hbx":192,"hby":1472,"path":[["m",206,0],["l",206,1472],["l",376,1472],["l",376,154],["l",1040,154],["l",1040,0],["l",206,0]]},"M":{"xoff":1856,"width":1472,"height":1472,"hbx":192,"hby":1472,"path":[["m",851,0],["l",353,1305],["l",345,1305],["q",359,1150,359,936],["l",359,0],["l",202,0],["l",202,1472],["l",458,1472],["l",923,258],["l",932,258],["l",1401,1472],["l",1655,1472],["l",1655,0],["l",1485,0],["l",1485,949],["q",1485,1112,1499,1303],["l",1491,1303],["l",989,0],["l",851,0]]},"N":{"xoff":1536,"width":1152,"height":1472,"hbx":192,"hby":1472,"path":[["m",1336,0],["l",1142,0],["l",349,1235],["l",341,1235],["q",357,1018,357,836],["l",357,0],["l",200,0],["l",200,1472],["l",392,1472],["l",1183,242],["l",1191,242],["q",1189,269,1182,416],["q",1175,564,1177,628],["l",1177,1472],["l",1336,1472],["l",1336,0]]},"O":{"xoff":1600,"width":1472,"height":1472,"hbx":64,"hby":1472,"path":[["m",1475,736],["q",1475,393,1297,196],["q",1119,0,802,0],["q",477,0,301,193],["q",125,386,125,738],["q",125,1088,301,1280],["q",478,1472,804,1472],["q",1120,1472,1297,1276],["q",1475,1081,1475,736],["m",305,736],["q",305,448,432,298],["q",559,149,802,149],["q",1046,149,1170,298],["q",1295,447,1295,736],["q",1295,1023,1171,1171],["q",1047,1320,804,1320],["q",559,1320,432,1170],["q",305,1021,305,736]]},"P":{"xoff":1216,"width":960,"height":1472,"hbx":192,"hby":1472,"path":[["m",1112,1033],["q",1112,804,963,681],["q",814,558,537,558],["l",368,558],["l",368,0],["l",198,0],["l",198,1472],["l",572,1472],["q",1112,1472,1112,1033],["m",368,704],["l",518,704],["q",739,704,837,780],["q",936,857,936,1025],["q",936,1177,843,1251],["q",750,1325,554,1325],["l",368,1325],["l",368,704]]},"Q":{"xoff":1600,"width":1472,"height":1792,"hbx":64,"hby":1472,"path":[["m",1475,736],["q",1475,461,1361,279],["q",1248,98,1041,33],["l",1390,-320],["l",1142,-320],["l",856,2],["l",801,0],["q",477,0,301,193],["q",125,386,125,738],["q",125,1088,301,1280],["q",478,1472,804,1472],["q",1120,1472,1297,1276],["q",1475,1081,1475,736],["m",305,736],["q",305,448,432,298],["q",559,149,802,149],["q",1046,149,1170,298],["q",1295,447,1295,736],["q",1295,1023,1171,1171],["q",1047,1320,804,1320],["q",559,1320,432,1170],["q",305,1021,305,736]]},"R":{"xoff":1280,"width":1088,"height":1472,"hbx":192,"hby":1472,"path":[["m",373,622],["l",373,0],["l",203,0],["l",203,1472],["l",608,1472],["q",880,1472,1010,1369],["q",1140,1267,1140,1061],["q",1140,772,843,671],["l",1245,0],["l",1044,0],["l",685,622],["l",373,622],["m",373,768],["l",610,768],["q",793,768,878,839],["q",964,910,964,1052],["q",964,1196,877,1259],["q",790,1323,598,1323],["l",373,1323],["l",373,768]]},"S":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",1052,401],["q",1052,212,908,106],["q",765,0,519,0],["q",252,0,109,67],["l",109,231],["q",202,193,311,171],["q",420,149,527,149],["q",703,149,791,211],["q",880,274,880,385],["q",880,459,848,506],["q",817,554,743,594],["q",670,635,519,686],["q",309,757,218,855],["q",128,953,128,1111],["q",128,1276,258,1374],["q",388,1472,603,1472],["q",826,1472,1014,1392],["l",959,1244],["q",773,1320,596,1320],["q",457,1320,378,1264],["q",300,1208,300,1109],["q",300,1035,329,987],["q",358,940,426,900],["q",495,860,636,812],["q",874,732,963,640],["q",1052,548,1052,401]]},"T":{"xoff":1152,"width":1152,"height":1472,"hbx":0,"hby":1472,"path":[["m",659,0],["l",489,0],["l",489,1321],["l",18,1321],["l",18,1472],["l",1133,1472],["l",1133,1321],["l",659,1321],["l",659,0]]},"U":{"xoff":1472,"width":1216,"height":1472,"hbx":128,"hby":1472,"path":[["m",1288,1472],["l",1288,532],["q",1288,284,1139,142],["q",990,0,730,0],["q",469,0,326,143],["q",184,286,184,536],["l",184,1472],["l",354,1472],["l",354,525],["q",354,344,452,246],["q",550,149,740,149],["q",922,149,1020,247],["q",1118,345,1118,527],["l",1118,1472],["l",1288,1472]]},"V":{"xoff":1216,"width":1216,"height":1472,"hbx":0,"hby":1472,"path":[["m",1033,1472],["l",1216,1472],["l",690,0],["l",523,0],["l",0,1472],["l",180,1472],["l",515,519],["q",573,355,607,200],["q",642,363,700,525],["l",1033,1472]]},"W":{"xoff":1920,"width":1920,"height":1472,"hbx":0,"hby":1472,"path":[["m",1496,0],["l",1326,0],["l",1027,986],["q",1006,1051,979,1151],["q",953,1251,952,1271],["q",930,1138,881,980],["l",591,0],["l",421,0],["l",27,1472],["l",209,1472],["l",443,562],["q",492,371,514,216],["q",542,400,595,577],["l",861,1472],["l",1043,1472],["l",1322,569],["q",1370,412,1404,216],["q",1423,359,1477,564],["l",1710,1472],["l",1892,1472],["l",1496,0]]},"X":{"xoff":1152,"width":1152,"height":1472,"hbx":0,"hby":1472,"path":[["m",1144,0],["l",956,0],["l",573,647],["l",183,0],["l",8,0],["l",481,769],["l",40,1472],["l",223,1472],["l",577,889],["l",934,1472],["l",1110,1472],["l",669,775],["l",1144,0]]},"Y":{"xoff":1152,"width":1152,"height":1472,"hbx":0,"hby":1472,"path":[["m",576,736],["l",967,1472],["l",1152,1472],["l",661,571],["l",661,0],["l",489,0],["l",489,563],["l",0,1472],["l",187,1472],["l",576,736]]},"Z":{"xoff":1152,"width":1024,"height":1472,"hbx":64,"hby":1472,"path":[["m",1071,0],["l",81,0],["l",81,134],["l",843,1319],["l",104,1319],["l",104,1472],["l",1050,1472],["l",1050,1338],["l",288,154],["l",1071,154],["l",1071,0]]},"[":{"xoff":704,"width":576,"height":1792,"hbx":128,"hby":1472,"path":[["m",651,-320],["l",173,-320],["l",173,1472],["l",651,1472],["l",651,1331],["l",341,1331],["l",341,-178],["l",651,-178],["l",651,-320]]},"\\":{"xoff":768,"width":768,"height":1472,"hbx":0,"hby":1472,"path":[["m",190,1472],["l",749,0],["l",579,0],["l",23,1472],["l",190,1472]]},"]":{"xoff":704,"width":576,"height":1792,"hbx":0,"hby":1472,"path":[["m",53,-178],["l",363,-178],["l",363,1331],["l",53,1331],["l",53,1472],["l",531,1472],["l",531,-320],["l",53,-320],["l",53,-178]]},"^":{"xoff":1088,"width":1088,"height":896,"hbx":0,"hby":1472,"path":[["m",48,576],["l",473,1472],["l",570,1472],["l",1038,576],["l",889,576],["l",524,1300],["l",197,576],["l",48,576]]},"_":{"xoff":896,"width":1024,"height":192,"hbx":-64,"hby":-192,"path":[["m",900,-323],["l",-4,-323],["l",-4,-192],["l",900,-192],["l",900,-323]]},"`":{"xoff":1152,"width":448,"height":320,"hbx":320,"hby":1536,"path":[["m",766,1216],["l",659,1216],["q",595,1267,508,1360],["q",422,1454,383,1516],["l",383,1536],["l",581,1536],["q",612,1469,667,1380],["q",723,1292,766,1240],["l",766,1216]]},"a":{"xoff":1152,"width":960,"height":1088,"hbx":64,"hby":1088,"path":[["m",860,0],["l",826,152],["l",818,152],["q",735,63,652,31],["q",570,0,447,0],["q",282,0,188,79],["q",95,159,95,305],["q",95,619,633,634],["l",822,640],["l",822,706],["q",822,831,765,891],["q",709,951,585,951],["q",446,951,271,867],["l",219,994],["q",301,1038,398,1063],["q",496,1088,594,1088],["q",793,1088,888,1003],["q",984,918,984,731],["l",984,0],["l",860,0],["m",480,137],["q",638,137,728,214],["q",818,292,818,432],["l",818,522],["l",649,516],["q",447,509,358,459],["q",269,410,269,305],["q",269,223,324,180],["q",380,137,480,137]]},"b":{"xoff":1280,"width":1088,"height":1536,"hbx":128,"hby":1536,"path":[["m",698,1088],["q",919,1088,1041,946],["q",1164,805,1164,546],["q",1164,287,1040,143],["q",917,0,698,0],["q",589,0,498,38],["q",408,76,346,154],["l",334,154],["l",299,0],["l",180,0],["l",180,1536],["l",346,1536],["l",346,1159],["q",346,1032,338,931],["l",346,931],["q",465,1088,698,1088],["m",676,949],["q",501,949,423,856],["q",346,764,346,546],["q",346,327,425,233],["q",505,139,680,139],["q",837,139,914,244],["q",992,350,992,548],["q",992,750,914,849],["q",837,949,676,949]]},"c":{"xoff":960,"width":832,"height":1088,"hbx":64,"hby":1088,"path":[["m",604,0],["q",370,0,241,140],["q",113,281,113,537],["q",113,801,243,944],["q",374,1088,615,1088],["q",693,1088,771,1071],["q",849,1054,893,1031],["l",843,890],["q",789,912,725,926],["q",662,941,613,941],["q",285,941,285,539],["q",285,349,365,247],["q",445,145,602,145],["q",736,145,877,204],["l",877,57],["q",769,0,604,0]]},"d":{"xoff":1280,"width":1088,"height":1536,"hbx":64,"hby":1536,"path":[["m",943,160],["l",934,160],["q",816,0,582,0],["q",362,0,239,141],["q",117,282,117,541],["q",117,801,240,944],["q",363,1088,582,1088],["q",810,1088,932,933],["l",945,933],["l",938,1012],["l",934,1089],["l",934,1536],["l",1100,1536],["l",1100,0],["l",965,0],["l",943,160],["m",601,139],["q",776,139,855,226],["q",934,314,934,508],["l",934,541],["q",934,761,854,855],["q",774,949,599,949],["q",449,949,369,842],["q",289,735,289,539],["q",289,341,368,240],["q",448,139,601,139]]},"e":{"xoff":1152,"width":1024,"height":1088,"hbx":64,"hby":1088,"path":[["m",641,0],["q",397,0,256,141],["q",115,283,115,535],["q",115,789,246,938],["q",377,1088,598,1088],["q",804,1088,924,956],["q",1045,824,1045,607],["l",1045,505],["l",287,505],["q",292,328,385,236],["q",478,145,647,145],["q",824,145,998,219],["l",998,71],["q",910,33,831,16],["q",752,0,641,0],["m",596,949],["q",463,949,384,867],["q",305,785,291,640],["l",867,640],["q",867,790,796,869],["q",726,949,596,949]]},"f":{"xoff":704,"width":832,"height":1536,"hbx":0,"hby":1536,"path":[["m",673,953],["l",394,953],["l",394,0],["l",228,0],["l",228,953],["l",29,953],["l",29,1028],["l",228,1088],["l",228,1147],["q",228,1536,581,1536],["q",668,1536,785,1501],["l",742,1368],["q",646,1399,578,1399],["q",484,1399,439,1339],["q",394,1280,394,1149],["l",394,1082],["l",673,1082],["l",673,953]]},"g":{"xoff":1152,"width":1152,"height":1600,"hbx":0,"hby":1088,"path":[["m",1102,1088],["l",1102,983],["l",893,959],["q",922,924,944,867],["q",967,810,967,739],["q",967,577,853,480],["q",740,384,541,384],["q",491,384,446,392],["q",337,327,337,229],["q",337,178,375,153],["q",413,128,506,128],["l",706,128],["q",890,128,988,56],["q",1087,-16,1087,-154],["q",1087,-328,937,-420],["q",787,-512,500,-512],["q",279,-512,159,-435],["q",40,-359,40,-220],["q",40,-124,106,-54],["q",172,15,291,40],["q",248,61,218,105],["q",189,149,189,207],["q",189,274,221,323],["q",254,373,325,419],["q",238,453,183,535],["q",128,617,128,722],["q",128,898,239,993],["q",350,1088,554,1088],["q",642,1088,713,1088],["l",1102,1088],["m",200,-216],["q",200,-299,278,-342],["q",356,-385,501,-385],["q",718,-385,822,-326],["q",927,-268,927,-168],["q",927,-85,870,-53],["q",813,-21,655,-21],["l",448,-21],["q",331,-21,265,-71],["q",200,-122,200,-216],["m",292,726],["q",292,615,360,558],["q",428,501,549,501],["q",803,501,803,729],["q",803,967,546,967],["q",424,967,358,906],["q",292,845,292,726]]},"h":{"xoff":1280,"width":1024,"height":1536,"hbx":128,"hby":1536,"path":[["m",946,0],["l",946,690],["q",946,821,883,885],["q",820,949,687,949],["q",509,949,427,857],["q",345,766,345,558],["l",345,0],["l",179,0],["l",179,1536],["l",345,1536],["l",345,1063],["q",345,978,337,922],["l",347,922],["q",397,999,489,1043],["q",582,1088,701,1088],["q",906,1088,1009,994],["q",1112,901,1112,698],["l",1112,0],["l",946,0]]},"i":{"xoff":512,"width":256,"height":1536,"hbx":128,"hby":1536,"path":[["m",340,0],["l",174,0],["l",174,1088],["l",340,1088],["l",340,0],["m",160,1391],["q",160,1448,188,1474],["q",216,1501,258,1501],["q",298,1501,327,1474],["q",356,1447,356,1391],["q",356,1335,327,1307],["q",298,1280,258,1280],["q",216,1280,188,1307],["q",160,1335,160,1391]]},"j":{"xoff":512,"width":512,"height":2048,"hbx":-128,"hby":1536,"path":[["m",41,-512],["q",-54,-512,-113,-487],["l",-113,-352],["q",-44,-372,23,-372],["q",101,-372,137,-329],["q",174,-286,174,-199],["l",174,1088],["l",340,1088],["l",340,-186],["q",340,-512,41,-512],["m",160,1391],["q",160,1448,188,1474],["q",216,1501,258,1501],["q",298,1501,327,1474],["q",356,1447,356,1391],["q",356,1335,327,1307],["q",298,1280,258,1280],["q",216,1280,188,1307],["q",160,1335,160,1391]]},"k":{"xoff":1088,"width":960,"height":1536,"hbx":128,"hby":1536,"path":[["m",342,555],["q",386,616,475,714],["l",834,1088],["l",1034,1088],["l",585,624],["l",1066,0],["l",863,0],["l",471,512],["l",342,405],["l",342,0],["l",178,0],["l",178,1536],["l",342,1536],["l",342,723],["q",342,668,334,555],["l",342,555]]},"l":{"xoff":512,"width":256,"height":1536,"hbx":128,"hby":1536,"path":[["m",340,0],["l",174,0],["l",174,1536],["l",340,1536],["l",340,0]]},"m":{"xoff":1920,"width":1664,"height":1088,"hbx":128,"hby":1088,"path":[["m",1587,0],["l",1587,693],["q",1587,820,1530,883],["q",1474,947,1354,947],["q",1197,947,1122,860],["q",1047,774,1047,594],["l",1047,0],["l",881,0],["l",881,693],["q",881,820,824,883],["q",768,947,647,947],["q",490,947,416,856],["q",343,765,343,558],["l",343,0],["l",177,0],["l",177,1088],["l",312,1088],["l",339,896],["l",347,896],["q",395,986,481,1037],["q",567,1088,674,1088],["q",933,1088,1013,880],["l",1021,880],["q",1071,976,1164,1032],["q",1258,1088,1379,1088],["q",1566,1088,1659,995],["q",1753,902,1753,697],["l",1753,0],["l",1587,0]]},"n":{"xoff":1280,"width":1024,"height":1088,"hbx":128,"hby":1088,"path":[["m",946,0],["l",946,689],["q",946,819,883,883],["q",820,947,687,947],["q",510,947,427,856],["q",345,766,345,558],["l",345,0],["l",179,0],["l",179,1088],["l",314,1088],["l",341,922],["l",349,922],["q",401,1001,495,1044],["q",589,1088,705,1088],["q",907,1088,1009,995],["q",1112,902,1112,697],["l",1112,0],["l",946,0]]},"o":{"xoff":1216,"width":1088,"height":1088,"hbx":64,"hby":1088,"path":[["m",1103,545],["q",1103,288,970,144],["q",838,0,604,0],["q",459,0,347,66],["q",235,132,174,255],["q",113,379,113,545],["q",113,802,244,945],["q",376,1088,610,1088],["q",837,1088,970,941],["q",1103,795,1103,545],["m",285,545],["q",285,347,367,243],["q",449,139,608,139],["q",766,139,848,242],["q",931,346,931,545],["q",931,742,848,844],["q",766,947,606,947],["q",447,947,366,846],["q",285,745,285,545]]},"p":{"xoff":1280,"width":1088,"height":1600,"hbx":128,"hby":1088,"path":[["m",698,0],["q",589,0,498,38],["q",408,76,346,154],["l",334,154],["q",346,53,346,-37],["l",346,-512],["l",180,-512],["l",180,1088],["l",315,1088],["l",338,925],["l",346,925],["q",412,1011,499,1049],["q",586,1088,698,1088],["q",921,1088,1042,945],["q",1164,803,1164,545],["q",1164,286,1040,143],["q",917,0,698,0],["m",676,947],["q",503,947,425,859],["q",348,771,346,580],["l",346,545],["q",346,327,425,233],["q",505,139,680,139],["q",826,139,909,247],["q",992,356,992,547],["q",992,740,909,843],["q",826,947,676,947]]},"q":{"xoff":1280,"width":1088,"height":1600,"hbx":64,"hby":1088,"path":[["m",601,139],["q",772,139,850,223],["q",929,307,934,506],["l",934,541],["q",934,758,853,853],["q",773,949,599,949],["q",449,949,369,842],["q",289,735,289,539],["q",289,344,368,241],["q",447,139,601,139],["m",578,0],["q",361,0,239,142],["q",117,285,117,541],["q",117,799,240,943],["q",363,1088,582,1088],["q",812,1088,936,925],["l",945,925],["l",969,1088],["l",1100,1088],["l",1100,-512],["l",934,-512],["l",934,-19],["q",934,86,945,160],["l",932,160],["q",814,0,578,0]]},"r":{"xoff":832,"width":704,"height":1088,"hbx":128,"hby":1088,"path":[["m",673,1088],["q",745,1088,803,1076],["l",780,922],["q",713,937,661,937],["q",529,937,435,832],["q",341,727,341,571],["l",341,0],["l",175,0],["l",175,1088],["l",312,1088],["l",331,871],["l",339,871],["q",400,975,485,1031],["q",570,1088,673,1088]]},"s":{"xoff":960,"width":832,"height":1088,"hbx":64,"hby":1088,"path":[["m",868,306],["q",868,159,756,79],["q",644,0,441,0],["q",227,0,107,59],["l",107,192],["q",184,166,272,151],["q",361,137,444,137],["q",571,137,639,175],["q",708,214,708,292],["q",708,353,653,396],["q",599,440,442,500],["q",292,554,229,595],["q",166,636,135,687],["q",104,739,104,811],["q",104,940,211,1014],["q",318,1088,505,1088],["q",679,1088,845,1016],["l",787,881],["q",626,949,495,949],["q",379,949,320,915],["q",262,881,262,822],["q",262,780,284,750],["q",306,720,355,693],["q",404,667,543,616],["q",734,548,801,479],["q",868,410,868,306]]},"t":{"xoff":704,"width":704,"height":1344,"hbx":0,"hby":1344,"path":[["m",518,137],["q",560,137,599,143],["q",639,150,662,157],["l",662,30],["q",636,17,584,8],["q",533,0,493,0],["q",183,0,183,325],["l",183,959],["l",30,959],["l",30,1039],["l",185,1109],["l",254,1344],["l",349,1344],["l",349,1088],["l",654,1088],["l",654,959],["l",349,959],["l",349,335],["q",349,240,394,188],["q",439,137,518,137]]},"u":{"xoff":1280,"width":1024,"height":1088,"hbx":128,"hby":1088,"path":[["m",335,1088],["l",335,397],["q",335,267,398,203],["q",461,139,594,139],["q",771,139,853,230],["q",935,322,935,529],["l",935,1088],["l",1101,1088],["l",1101,0],["l",964,0],["l",940,163],["l",931,163],["q",879,84,786,42],["q",694,0,575,0],["q",370,0,268,92],["q",167,185,167,389],["l",167,1088],["l",335,1088]]},"v":{"xoff":1024,"width":1024,"height":1088,"hbx":0,"hby":1088,"path":[["m",415,0],["l",0,1088],["l",178,1088],["l",413,443],["q",493,216,507,149],["l",515,149],["q",526,202,584,367],["q",643,532,846,1088],["l",1024,1088],["l",609,0],["l",415,0]]},"w":{"xoff":1600,"width":1600,"height":1088,"hbx":0,"hby":1088,"path":[["m",1076,0],["l",874,638],["q",855,697,803,904],["l",794,904],["q",754,730,724,636],["l",516,0],["l",323,0],["l",23,1088],["l",198,1088],["q",304,678,360,463],["q",416,249,424,175],["l",432,175],["q",443,232,467,321],["q",492,411,510,464],["l",712,1088],["l",893,1088],["l",1090,464],["q",1146,293,1166,177],["l",1174,177],["q",1178,213,1195,287],["q",1213,362,1405,1088],["l",1578,1088],["l",1274,0],["l",1076,0]]},"x":{"xoff":1088,"width":1088,"height":1088,"hbx":0,"hby":1088,"path":[["m",446,557],["l",60,1088],["l",252,1088],["l",545,671],["l",836,1088],["l",1026,1088],["l",640,557],["l",1046,0],["l",855,0],["l",544,441],["l",233,0],["l",45,0],["l",446,557]]},"y":{"xoff":1024,"width":1024,"height":1600,"hbx":0,"hby":1088,"path":[["m",2,1088],["l",179,1088],["l",417,458],["q",495,243,514,147],["l",522,147],["q",535,198,576,322],["q",617,447,845,1088],["l",1022,1088],["l",555,-169],["q",485,-356,392,-434],["q",300,-512,165,-512],["q",89,-512,16,-495],["l",16,-362],["q",71,-374,139,-374],["q",310,-374,383,-180],["l",444,-23],["l",2,1088]]},"z":{"xoff":960,"width":832,"height":1088,"hbx":64,"hby":1088,"path":[["m",879,0],["l",82,0],["l",82,112],["l",682,959],["l",119,959],["l",119,1088],["l",864,1088],["l",864,960],["l",272,129],["l",879,129],["l",879,0]]},"{":{"xoff":768,"width":704,"height":1792,"hbx":0,"hby":1472,"path":[["m",472,17],["q",472,-85,529,-131],["q",587,-178,698,-180],["l",698,-320],["q",510,-318,407,-232],["q",304,-147,304,7],["l",304,311],["q",304,415,241,460],["q",179,505,60,505],["l",60,646],["q",189,648,246,694],["q",304,741,304,837],["l",304,1144],["q",304,1299,411,1385],["q",518,1472,698,1472],["l",698,1333],["q",472,1327,472,1133],["l",472,837],["q",472,621,251,582],["l",251,570],["q",472,531,472,315],["l",472,17]]},"|":{"xoff":1152,"width":256,"height":2048,"hbx":448,"hby":1536,"path":[["m",505,1536],["l",646,1536],["l",646,-512],["l",505,-512],["l",505,1536]]},"}":{"xoff":768,"width":704,"height":1792,"hbx":64,"hby":1472,"path":[["m",515,582],["q",296,621,296,837],["l",296,1133],["q",296,1327,71,1333],["l",71,1472],["q",254,1472,359,1384],["q",464,1297,464,1144],["l",464,837],["q",464,740,522,694],["q",580,648,708,646],["l",708,505],["q",588,505,526,460],["q",464,415,464,311],["l",464,7],["q",464,-146,362,-232],["q",260,-318,71,-320],["l",71,-180],["q",181,-178,238,-131],["q",296,-85,296,17],["l",296,315],["q",296,430,350,490],["q",404,550,515,570],["l",515,582]]},"~":{"xoff":1152,"width":1024,"height":256,"hbx":64,"hby":832,"path":[["m",332,693],["q",280,693,217,660],["q",155,628,102,576],["l",102,725],["q",200,832,342,832],["q",409,832,464,818],["q",520,805,608,768],["q",673,741,721,728],["q",769,715,816,715],["q",869,715,932,746],["q",995,777,1048,832],["l",1048,684],["q",948,576,808,576],["q",737,576,675,592],["q",613,608,542,639],["q",468,670,424,681],["q",380,693,332,693]]}},"exporter":"SimpleJson","version":"0.0.3"};
 
 },{}],23:[function(require,module,exports){
 var createBuffer = require('gl-buffer')
@@ -4662,7 +4684,7 @@ function wrappedNDArrayCtor(data, shape, stride, offset) {
 
 module.exports = wrappedNDArrayCtor
 }).call(this,require("buffer").Buffer)
-},{"buffer":119,"iota-array":31}],31:[function(require,module,exports){
+},{"buffer":120,"iota-array":31}],31:[function(require,module,exports){
 "use strict"
 
 function iota(n) {
@@ -5146,8 +5168,8 @@ exports.clearCache = function clearCache() {
     BUFFER[i].length = 0
   }
 }
-}).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"bit-twiddle":32,"buffer":119,"dup":33}],35:[function(require,module,exports){
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
+},{"bit-twiddle":32,"buffer":120,"dup":33}],35:[function(require,module,exports){
 /* (The MIT License)
  *
  * Copyright (c) 2012 Brandon Benvie <http://bbenvie.com>
@@ -5616,9 +5638,9 @@ function createVAONative(gl, ext) {
 module.exports = createVAONative
 },{"./do-bind.js":37}],40:[function(require,module,exports){
 module.exports=require(35)
-},{}],41:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/webglew/node_modules/weakmap/weakmap.js":35}],41:[function(require,module,exports){
 module.exports=require(36)
-},{"weakmap":40}],42:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/webglew/webglew.js":36,"weakmap":40}],42:[function(require,module,exports){
 "use strict"
 
 var webglew = require("webglew")
@@ -6129,7 +6151,7 @@ function makeReflectTypes(uniforms, useIndex) {
 }
 },{}],47:[function(require,module,exports){
 module.exports=require(33)
-},{}],48:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/typedarray-pool/node_modules/dup/dup.js":33}],48:[function(require,module,exports){
 "use strict"
 
 var createUniformWrapper = require("./lib/create-uniforms.js")
@@ -7470,7 +7492,7 @@ module.exports = require('./lib/deepcopy');
 
 }());
 
-},{"util":125}],76:[function(require,module,exports){
+},{"util":127}],76:[function(require,module,exports){
 var createBuffer = require('gl-buffer')
 var createVAO = require('gl-vao')
 
@@ -7534,43 +7556,43 @@ Quad.prototype.dispose = function() {
 module.exports = Quad
 },{"gl-buffer":77,"gl-vao":95}],77:[function(require,module,exports){
 module.exports=require(24)
-},{"ndarray":83,"ndarray-ops":78,"typedarray-pool":87,"webglew":89}],78:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/buffer.js":24,"ndarray":83,"ndarray-ops":78,"typedarray-pool":87,"webglew":89}],78:[function(require,module,exports){
 module.exports=require(25)
-},{"cwise-compiler":79}],79:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/ndarray-ops/ndarray-ops.js":25,"cwise-compiler":79}],79:[function(require,module,exports){
 module.exports=require(26)
-},{"./lib/thunk.js":81}],80:[function(require,module,exports){
+},{"./lib/thunk.js":81,"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/ndarray-ops/node_modules/cwise-compiler/compiler.js":26}],80:[function(require,module,exports){
 module.exports=require(27)
-},{"uniq":82}],81:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/ndarray-ops/node_modules/cwise-compiler/lib/compile.js":27,"uniq":82}],81:[function(require,module,exports){
 module.exports=require(28)
-},{"./compile.js":80}],82:[function(require,module,exports){
+},{"./compile.js":80,"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/ndarray-ops/node_modules/cwise-compiler/lib/thunk.js":28}],82:[function(require,module,exports){
 module.exports=require(29)
-},{}],83:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/ndarray-ops/node_modules/cwise-compiler/node_modules/uniq/uniq.js":29}],83:[function(require,module,exports){
 module.exports=require(30)
-},{"buffer":119,"iota-array":84}],84:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/ndarray/ndarray.js":30,"buffer":120,"iota-array":84}],84:[function(require,module,exports){
 module.exports=require(31)
-},{}],85:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/ndarray/node_modules/iota-array/iota.js":31}],85:[function(require,module,exports){
 module.exports=require(32)
-},{}],86:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/typedarray-pool/node_modules/bit-twiddle/twiddle.js":32}],86:[function(require,module,exports){
 module.exports=require(33)
-},{}],87:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/typedarray-pool/node_modules/dup/dup.js":33}],87:[function(require,module,exports){
 module.exports=require(34)
-},{"bit-twiddle":85,"buffer":119,"dup":86}],88:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/typedarray-pool/pool.js":34,"bit-twiddle":85,"buffer":120,"dup":86}],88:[function(require,module,exports){
 module.exports=require(35)
-},{}],89:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/webglew/node_modules/weakmap/weakmap.js":35}],89:[function(require,module,exports){
 module.exports=require(36)
-},{"weakmap":88}],90:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/webglew/webglew.js":36,"weakmap":88}],90:[function(require,module,exports){
 module.exports=require(37)
-},{}],91:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-vao/lib/do-bind.js":37}],91:[function(require,module,exports){
 module.exports=require(38)
-},{"./do-bind.js":90}],92:[function(require,module,exports){
+},{"./do-bind.js":90,"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-vao/lib/vao-emulated.js":38}],92:[function(require,module,exports){
 module.exports=require(39)
-},{"./do-bind.js":90}],93:[function(require,module,exports){
+},{"./do-bind.js":90,"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-vao/lib/vao-native.js":39}],93:[function(require,module,exports){
 module.exports=require(35)
-},{}],94:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/webglew/node_modules/weakmap/weakmap.js":35}],94:[function(require,module,exports){
 module.exports=require(36)
-},{"weakmap":93}],95:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/webglew/webglew.js":36,"weakmap":93}],95:[function(require,module,exports){
 module.exports=require(42)
-},{"./lib/vao-emulated.js":91,"./lib/vao-native.js":92,"webglew":94}],96:[function(require,module,exports){
+},{"./lib/vao-emulated.js":91,"./lib/vao-native.js":92,"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-vao/vao.js":42,"webglew":94}],96:[function(require,module,exports){
 'use strict'
 
 module.exports = createAttributeWrapper
@@ -7908,7 +7930,7 @@ function makeReflectTypes(uniforms, useIndex) {
 }
 },{}],99:[function(require,module,exports){
 module.exports=require(33)
-},{}],100:[function(require,module,exports){
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-basic-mesh/node_modules/gl-buffer/node_modules/typedarray-pool/node_modules/dup/dup.js":33}],100:[function(require,module,exports){
 'use strict'
 
 var createUniformWrapper = require('./lib/create-uniforms')
@@ -8087,6 +8109,8 @@ if (typeof Object.create === 'function') {
 }
 
 },{}],104:[function(require,module,exports){
+module.exports=require(103)
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-vignette-background/node_modules/inherits/inherits_browser.js":103}],105:[function(require,module,exports){
 var poly2tri = require('poly2tri');
 var util = require('point-util');
 
@@ -8209,7 +8233,7 @@ module.exports = function (shapes, steinerPoints) {
     }
     return allTris;
 };
-},{"point-util":105,"poly2tri":111}],105:[function(require,module,exports){
+},{"point-util":106,"poly2tri":112}],106:[function(require,module,exports){
 module.exports.isClockwise = function(points) {
     var sum = 0;
     for (var i=0; i<points.length; i++) {
@@ -8278,9 +8302,9 @@ module.exports.getBounds = function(contour) {
         maxY: maxY
     };
 }
-},{}],106:[function(require,module,exports){
-module.exports={"version": "1.3.5"}
 },{}],107:[function(require,module,exports){
+module.exports={"version": "1.3.5"}
+},{}],108:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -8461,7 +8485,7 @@ module.exports = AdvancingFront;
 module.exports.Node = Node;
 
 
-},{}],108:[function(require,module,exports){
+},{}],109:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -8496,7 +8520,7 @@ module.exports = assert;
 
 
 
-},{}],109:[function(require,module,exports){
+},{}],110:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -8773,7 +8797,7 @@ Point.dot = function(a, b) {
 
 module.exports = Point;
 
-},{"./xy":116}],110:[function(require,module,exports){
+},{"./xy":117}],111:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -8827,7 +8851,7 @@ PointError.prototype.constructor = PointError;
 
 module.exports = PointError;
 
-},{"./xy":116}],111:[function(require,module,exports){
+},{"./xy":117}],112:[function(require,module,exports){
 (function (global){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
@@ -8946,8 +8970,8 @@ exports.triangulate = sweep.triangulate;
  */
 exports.sweep = {Triangulate: sweep.triangulate};
 
-}).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../dist/version.json":106,"./point":109,"./pointerror":110,"./sweep":112,"./sweepcontext":113,"./triangle":114}],112:[function(require,module,exports){
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"../dist/version.json":107,"./point":110,"./pointerror":111,"./sweep":113,"./sweepcontext":114,"./triangle":115}],113:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -9783,7 +9807,7 @@ function flipScanEdgeEvent(tcx, ep, eq, flip_triangle, t, p) {
 
 exports.triangulate = triangulate;
 
-},{"./advancingfront":107,"./assert":108,"./pointerror":110,"./triangle":114,"./utils":115}],113:[function(require,module,exports){
+},{"./advancingfront":108,"./assert":109,"./pointerror":111,"./triangle":115,"./utils":116}],114:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -10326,7 +10350,7 @@ SweepContext.prototype.meshClean = function(triangle) {
 
 module.exports = SweepContext;
 
-},{"./advancingfront":107,"./point":109,"./pointerror":110,"./sweep":112,"./triangle":114}],114:[function(require,module,exports){
+},{"./advancingfront":108,"./point":110,"./pointerror":111,"./sweep":113,"./triangle":115}],115:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -10889,7 +10913,7 @@ Triangle.prototype.markConstrainedEdgeByPoints = function(p, q) {
 
 module.exports = Triangle;
 
-},{"./xy":116}],115:[function(require,module,exports){
+},{"./xy":117}],116:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -11000,7 +11024,7 @@ function isAngleObtuse(pa, pb, pc) {
 exports.isAngleObtuse = isAngleObtuse;
 
 
-},{}],116:[function(require,module,exports){
+},{}],117:[function(require,module,exports){
 /*
  * Poly2Tri Copyright (c) 2009-2014, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
@@ -11109,7 +11133,7 @@ module.exports = {
     equals: equals
 };
 
-},{}],117:[function(require,module,exports){
+},{}],118:[function(require,module,exports){
 function Vector2(x, y) {
 	if (typeof x === "object") {
         this.x = x.x||0;
@@ -11311,7 +11335,7 @@ vec2.random = function(scale) {
 vec2.str = vec2.toString;
 
 module.exports = Vector2;
-},{}],118:[function(require,module,exports){
+},{}],119:[function(require,module,exports){
 var decompose = require('fontpath-shape2d')
 var triangulate = require('shape2d-triangulate')
 
@@ -11336,7 +11360,7 @@ module.exports = function(glyph) {
         positions: new Float32Array(tris)
     }
 }
-},{"fontpath-shape2d":13,"shape2d-triangulate":104}],119:[function(require,module,exports){
+},{"fontpath-shape2d":13,"shape2d-triangulate":105}],120:[function(require,module,exports){
 /*!
  * The buffer module from node.js, for the browser.
  *
@@ -11346,14 +11370,17 @@ module.exports = function(glyph) {
 
 var base64 = require('base64-js')
 var ieee754 = require('ieee754')
+var isArray = require('is-array')
 
 exports.Buffer = Buffer
 exports.SlowBuffer = Buffer
 exports.INSPECT_MAX_BYTES = 50
-Buffer.poolSize = 8192
+Buffer.poolSize = 8192 // not used by this implementation
+
+var kMaxLength = 0x3fffffff
 
 /**
- * If `TYPED_ARRAY_SUPPORT`:
+ * If `Buffer.TYPED_ARRAY_SUPPORT`:
  *   === true    Use Uint8Array implementation (fastest)
  *   === false   Use Object implementation (most compatible, even IE6)
  *
@@ -11371,10 +11398,10 @@ Buffer.poolSize = 8192
  *  - IE10 has a broken `TypedArray.prototype.subarray` function which returns arrays of
  *    incorrect length in some situations.
  *
- * We detect these buggy browsers and set `TYPED_ARRAY_SUPPORT` to `false` so they will
+ * We detect these buggy browsers and set `Buffer.TYPED_ARRAY_SUPPORT` to `false` so they will
  * get the Object implementation, which is slower but will work correctly.
  */
-var TYPED_ARRAY_SUPPORT = (function () {
+Buffer.TYPED_ARRAY_SUPPORT = (function () {
   try {
     var buf = new ArrayBuffer(0)
     var arr = new Uint8Array(buf)
@@ -11418,10 +11445,14 @@ function Buffer (subject, encoding, noZero) {
       subject = subject.data
     length = +subject.length > 0 ? Math.floor(+subject.length) : 0
   } else
-    throw new Error('First argument needs to be a number, array or string.')
+    throw new TypeError('must start with number, buffer, array or string')
+
+  if (this.length > kMaxLength)
+    throw new RangeError('Attempt to allocate Buffer larger than maximum ' +
+      'size: 0x' + kMaxLength.toString(16) + ' bytes')
 
   var buf
-  if (TYPED_ARRAY_SUPPORT) {
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
     // Preferred: Return an augmented `Uint8Array` instance for best performance
     buf = Buffer._augment(new Uint8Array(length))
   } else {
@@ -11432,7 +11463,7 @@ function Buffer (subject, encoding, noZero) {
   }
 
   var i
-  if (TYPED_ARRAY_SUPPORT && typeof subject.byteLength === 'number') {
+  if (Buffer.TYPED_ARRAY_SUPPORT && typeof subject.byteLength === 'number') {
     // Speed optimization -- use set if we're copying from a typed array
     buf._set(subject)
   } else if (isArrayish(subject)) {
@@ -11446,7 +11477,7 @@ function Buffer (subject, encoding, noZero) {
     }
   } else if (type === 'string') {
     buf.write(subject, 0, encoding)
-  } else if (type === 'number' && !TYPED_ARRAY_SUPPORT && !noZero) {
+  } else if (type === 'number' && !Buffer.TYPED_ARRAY_SUPPORT && !noZero) {
     for (i = 0; i < length; i++) {
       buf[i] = 0
     }
@@ -11455,8 +11486,25 @@ function Buffer (subject, encoding, noZero) {
   return buf
 }
 
-// STATIC METHODS
-// ==============
+Buffer.isBuffer = function (b) {
+  return !!(b != null && b._isBuffer)
+}
+
+Buffer.compare = function (a, b) {
+  if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b))
+    throw new TypeError('Arguments must be Buffers')
+
+  var x = a.length
+  var y = b.length
+  for (var i = 0, len = Math.min(x, y); i < len && a[i] === b[i]; i++) {}
+  if (i !== len) {
+    x = a[i]
+    y = b[i]
+  }
+  if (x < y) return -1
+  if (y < x) return 1
+  return 0
+}
 
 Buffer.isEncoding = function (encoding) {
   switch (String(encoding).toLowerCase()) {
@@ -11477,43 +11525,8 @@ Buffer.isEncoding = function (encoding) {
   }
 }
 
-Buffer.isBuffer = function (b) {
-  return !!(b != null && b._isBuffer)
-}
-
-Buffer.byteLength = function (str, encoding) {
-  var ret
-  str = str.toString()
-  switch (encoding || 'utf8') {
-    case 'hex':
-      ret = str.length / 2
-      break
-    case 'utf8':
-    case 'utf-8':
-      ret = utf8ToBytes(str).length
-      break
-    case 'ascii':
-    case 'binary':
-    case 'raw':
-      ret = str.length
-      break
-    case 'base64':
-      ret = base64ToBytes(str).length
-      break
-    case 'ucs2':
-    case 'ucs-2':
-    case 'utf16le':
-    case 'utf-16le':
-      ret = str.length * 2
-      break
-    default:
-      throw new Error('Unknown encoding')
-  }
-  return ret
-}
-
 Buffer.concat = function (list, totalLength) {
-  assert(isArray(list), 'Usage: Buffer.concat(list[, length])')
+  if (!isArray(list)) throw new TypeError('Usage: Buffer.concat(list[, length])')
 
   if (list.length === 0) {
     return new Buffer(0)
@@ -11539,26 +11552,118 @@ Buffer.concat = function (list, totalLength) {
   return buf
 }
 
-Buffer.compare = function (a, b) {
-  assert(Buffer.isBuffer(a) && Buffer.isBuffer(b), 'Arguments must be Buffers')
-  var x = a.length
-  var y = b.length
-  for (var i = 0, len = Math.min(x, y); i < len && a[i] === b[i]; i++) {}
-  if (i !== len) {
-    x = a[i]
-    y = b[i]
+Buffer.byteLength = function (str, encoding) {
+  var ret
+  str = str + ''
+  switch (encoding || 'utf8') {
+    case 'ascii':
+    case 'binary':
+    case 'raw':
+      ret = str.length
+      break
+    case 'ucs2':
+    case 'ucs-2':
+    case 'utf16le':
+    case 'utf-16le':
+      ret = str.length * 2
+      break
+    case 'hex':
+      ret = str.length >>> 1
+      break
+    case 'utf8':
+    case 'utf-8':
+      ret = utf8ToBytes(str).length
+      break
+    case 'base64':
+      ret = base64ToBytes(str).length
+      break
+    default:
+      ret = str.length
   }
-  if (x < y) {
-    return -1
-  }
-  if (y < x) {
-    return 1
-  }
-  return 0
+  return ret
 }
 
-// BUFFER INSTANCE METHODS
-// =======================
+// pre-set for values that may exist in the future
+Buffer.prototype.length = undefined
+Buffer.prototype.parent = undefined
+
+// toString(encoding, start=0, end=buffer.length)
+Buffer.prototype.toString = function (encoding, start, end) {
+  var loweredCase = false
+
+  start = start >>> 0
+  end = end === undefined || end === Infinity ? this.length : end >>> 0
+
+  if (!encoding) encoding = 'utf8'
+  if (start < 0) start = 0
+  if (end > this.length) end = this.length
+  if (end <= start) return ''
+
+  while (true) {
+    switch (encoding) {
+      case 'hex':
+        return hexSlice(this, start, end)
+
+      case 'utf8':
+      case 'utf-8':
+        return utf8Slice(this, start, end)
+
+      case 'ascii':
+        return asciiSlice(this, start, end)
+
+      case 'binary':
+        return binarySlice(this, start, end)
+
+      case 'base64':
+        return base64Slice(this, start, end)
+
+      case 'ucs2':
+      case 'ucs-2':
+      case 'utf16le':
+      case 'utf-16le':
+        return utf16leSlice(this, start, end)
+
+      default:
+        if (loweredCase)
+          throw new TypeError('Unknown encoding: ' + encoding)
+        encoding = (encoding + '').toLowerCase()
+        loweredCase = true
+    }
+  }
+}
+
+Buffer.prototype.equals = function (b) {
+  if(!Buffer.isBuffer(b)) throw new TypeError('Argument must be a Buffer')
+  return Buffer.compare(this, b) === 0
+}
+
+Buffer.prototype.inspect = function () {
+  var str = ''
+  var max = exports.INSPECT_MAX_BYTES
+  if (this.length > 0) {
+    str = this.toString('hex', 0, max).match(/.{2}/g).join(' ')
+    if (this.length > max)
+      str += ' ... '
+  }
+  return '<Buffer ' + str + '>'
+}
+
+Buffer.prototype.compare = function (b) {
+  if (!Buffer.isBuffer(b)) throw new TypeError('Argument must be a Buffer')
+  return Buffer.compare(this, b)
+}
+
+// `get` will be removed in Node 0.13+
+Buffer.prototype.get = function (offset) {
+  console.log('.get() is deprecated. Access using array indexes instead.')
+  return this.readUInt8(offset)
+}
+
+// `set` will be removed in Node 0.13+
+Buffer.prototype.set = function (v, offset) {
+  console.log('.set() is deprecated. Access using array indexes instead.')
+  return this.writeUInt8(v, offset)
+}
 
 function hexWrite (buf, string, offset, length) {
   offset = Number(offset) || 0
@@ -11574,14 +11679,14 @@ function hexWrite (buf, string, offset, length) {
 
   // must be an even number of digits
   var strLen = string.length
-  assert(strLen % 2 === 0, 'Invalid hex string')
+  if (strLen % 2 !== 0) throw new Error('Invalid hex string')
 
   if (length > strLen / 2) {
     length = strLen / 2
   }
   for (var i = 0; i < length; i++) {
     var byte = parseInt(string.substr(i * 2, 2), 16)
-    assert(!isNaN(byte), 'Invalid hex string')
+    if (isNaN(byte)) throw new Error('Invalid hex string')
     buf[offset + i] = byte
   }
   return i
@@ -11663,48 +11768,7 @@ Buffer.prototype.write = function (string, offset, length, encoding) {
       ret = utf16leWrite(this, string, offset, length)
       break
     default:
-      throw new Error('Unknown encoding')
-  }
-  return ret
-}
-
-Buffer.prototype.toString = function (encoding, start, end) {
-  var self = this
-
-  encoding = String(encoding || 'utf8').toLowerCase()
-  start = Number(start) || 0
-  end = (end === undefined) ? self.length : Number(end)
-
-  // Fastpath empty strings
-  if (end === start)
-    return ''
-
-  var ret
-  switch (encoding) {
-    case 'hex':
-      ret = hexSlice(self, start, end)
-      break
-    case 'utf8':
-    case 'utf-8':
-      ret = utf8Slice(self, start, end)
-      break
-    case 'ascii':
-      ret = asciiSlice(self, start, end)
-      break
-    case 'binary':
-      ret = binarySlice(self, start, end)
-      break
-    case 'base64':
-      ret = base64Slice(self, start, end)
-      break
-    case 'ucs2':
-    case 'ucs-2':
-    case 'utf16le':
-    case 'utf-16le':
-      ret = utf16leSlice(self, start, end)
-      break
-    default:
-      throw new Error('Unknown encoding')
+      throw new TypeError('Unknown encoding: ' + encoding)
   }
   return ret
 }
@@ -11713,52 +11777,6 @@ Buffer.prototype.toJSON = function () {
   return {
     type: 'Buffer',
     data: Array.prototype.slice.call(this._arr || this, 0)
-  }
-}
-
-Buffer.prototype.equals = function (b) {
-  assert(Buffer.isBuffer(b), 'Argument must be a Buffer')
-  return Buffer.compare(this, b) === 0
-}
-
-Buffer.prototype.compare = function (b) {
-  assert(Buffer.isBuffer(b), 'Argument must be a Buffer')
-  return Buffer.compare(this, b)
-}
-
-// copy(targetBuffer, targetStart=0, sourceStart=0, sourceEnd=buffer.length)
-Buffer.prototype.copy = function (target, target_start, start, end) {
-  var source = this
-
-  if (!start) start = 0
-  if (!end && end !== 0) end = this.length
-  if (!target_start) target_start = 0
-
-  // Copy 0 bytes; we're done
-  if (end === start) return
-  if (target.length === 0 || source.length === 0) return
-
-  // Fatal error conditions
-  assert(end >= start, 'sourceEnd < sourceStart')
-  assert(target_start >= 0 && target_start < target.length,
-      'targetStart out of bounds')
-  assert(start >= 0 && start < source.length, 'sourceStart out of bounds')
-  assert(end >= 0 && end <= source.length, 'sourceEnd out of bounds')
-
-  // Are we oob?
-  if (end > this.length)
-    end = this.length
-  if (target.length - target_start < end - start)
-    end = target.length - target_start + start
-
-  var len = end - start
-
-  if (len < 100 || !TYPED_ARRAY_SUPPORT) {
-    for (var i = 0; i < len; i++) {
-      target[i + target_start] = this[i + start]
-    }
-  } else {
-    target._set(this.subarray(start, start + len), target_start)
   }
 }
 
@@ -11847,7 +11865,7 @@ Buffer.prototype.slice = function (start, end) {
   if (end < start)
     end = start
 
-  if (TYPED_ARRAY_SUPPORT) {
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
     return Buffer._augment(this.subarray(start, end))
   } else {
     var sliceLen = end - start
@@ -11859,365 +11877,275 @@ Buffer.prototype.slice = function (start, end) {
   }
 }
 
-// `get` will be removed in Node 0.13+
-Buffer.prototype.get = function (offset) {
-  console.log('.get() is deprecated. Access using array indexes instead.')
-  return this.readUInt8(offset)
-}
-
-// `set` will be removed in Node 0.13+
-Buffer.prototype.set = function (v, offset) {
-  console.log('.set() is deprecated. Access using array indexes instead.')
-  return this.writeUInt8(v, offset)
+/*
+ * Need to make sure that buffer isn't trying to write out of bounds.
+ */
+function checkOffset (offset, ext, length) {
+  if ((offset % 1) !== 0 || offset < 0)
+    throw new RangeError('offset is not uint')
+  if (offset + ext > length)
+    throw new RangeError('Trying to access beyond buffer length')
 }
 
 Buffer.prototype.readUInt8 = function (offset, noAssert) {
-  if (!noAssert) {
-    assert(offset !== undefined && offset !== null, 'missing offset')
-    assert(offset < this.length, 'Trying to read beyond buffer length')
-  }
-
-  if (offset >= this.length)
-    return
-
+  if (!noAssert)
+    checkOffset(offset, 1, this.length)
   return this[offset]
 }
 
-function readUInt16 (buf, offset, littleEndian, noAssert) {
-  if (!noAssert) {
-    assert(typeof littleEndian === 'boolean', 'missing or invalid endian')
-    assert(offset !== undefined && offset !== null, 'missing offset')
-    assert(offset + 1 < buf.length, 'Trying to read beyond buffer length')
-  }
-
-  var len = buf.length
-  if (offset >= len)
-    return
-
-  var val
-  if (littleEndian) {
-    val = buf[offset]
-    if (offset + 1 < len)
-      val |= buf[offset + 1] << 8
-  } else {
-    val = buf[offset] << 8
-    if (offset + 1 < len)
-      val |= buf[offset + 1]
-  }
-  return val
-}
-
 Buffer.prototype.readUInt16LE = function (offset, noAssert) {
-  return readUInt16(this, offset, true, noAssert)
+  if (!noAssert)
+    checkOffset(offset, 2, this.length)
+  return this[offset] | (this[offset + 1] << 8)
 }
 
 Buffer.prototype.readUInt16BE = function (offset, noAssert) {
-  return readUInt16(this, offset, false, noAssert)
-}
-
-function readUInt32 (buf, offset, littleEndian, noAssert) {
-  if (!noAssert) {
-    assert(typeof littleEndian === 'boolean', 'missing or invalid endian')
-    assert(offset !== undefined && offset !== null, 'missing offset')
-    assert(offset + 3 < buf.length, 'Trying to read beyond buffer length')
-  }
-
-  var len = buf.length
-  if (offset >= len)
-    return
-
-  var val
-  if (littleEndian) {
-    if (offset + 2 < len)
-      val = buf[offset + 2] << 16
-    if (offset + 1 < len)
-      val |= buf[offset + 1] << 8
-    val |= buf[offset]
-    if (offset + 3 < len)
-      val = val + (buf[offset + 3] << 24 >>> 0)
-  } else {
-    if (offset + 1 < len)
-      val = buf[offset + 1] << 16
-    if (offset + 2 < len)
-      val |= buf[offset + 2] << 8
-    if (offset + 3 < len)
-      val |= buf[offset + 3]
-    val = val + (buf[offset] << 24 >>> 0)
-  }
-  return val
+  if (!noAssert)
+    checkOffset(offset, 2, this.length)
+  return (this[offset] << 8) | this[offset + 1]
 }
 
 Buffer.prototype.readUInt32LE = function (offset, noAssert) {
-  return readUInt32(this, offset, true, noAssert)
+  if (!noAssert)
+    checkOffset(offset, 4, this.length)
+
+  return ((this[offset]) |
+      (this[offset + 1] << 8) |
+      (this[offset + 2] << 16)) +
+      (this[offset + 3] * 0x1000000)
 }
 
 Buffer.prototype.readUInt32BE = function (offset, noAssert) {
-  return readUInt32(this, offset, false, noAssert)
+  if (!noAssert)
+    checkOffset(offset, 4, this.length)
+
+  return (this[offset] * 0x1000000) +
+      ((this[offset + 1] << 16) |
+      (this[offset + 2] << 8) |
+      this[offset + 3])
 }
 
 Buffer.prototype.readInt8 = function (offset, noAssert) {
-  if (!noAssert) {
-    assert(offset !== undefined && offset !== null,
-        'missing offset')
-    assert(offset < this.length, 'Trying to read beyond buffer length')
-  }
-
-  if (offset >= this.length)
-    return
-
-  var neg = this[offset] & 0x80
-  if (neg)
-    return (0xff - this[offset] + 1) * -1
-  else
-    return this[offset]
-}
-
-function readInt16 (buf, offset, littleEndian, noAssert) {
-  if (!noAssert) {
-    assert(typeof littleEndian === 'boolean', 'missing or invalid endian')
-    assert(offset !== undefined && offset !== null, 'missing offset')
-    assert(offset + 1 < buf.length, 'Trying to read beyond buffer length')
-  }
-
-  var len = buf.length
-  if (offset >= len)
-    return
-
-  var val = readUInt16(buf, offset, littleEndian, true)
-  var neg = val & 0x8000
-  if (neg)
-    return (0xffff - val + 1) * -1
-  else
-    return val
+  if (!noAssert)
+    checkOffset(offset, 1, this.length)
+  if (!(this[offset] & 0x80))
+    return (this[offset])
+  return ((0xff - this[offset] + 1) * -1)
 }
 
 Buffer.prototype.readInt16LE = function (offset, noAssert) {
-  return readInt16(this, offset, true, noAssert)
+  if (!noAssert)
+    checkOffset(offset, 2, this.length)
+  var val = this[offset] | (this[offset + 1] << 8)
+  return (val & 0x8000) ? val | 0xFFFF0000 : val
 }
 
 Buffer.prototype.readInt16BE = function (offset, noAssert) {
-  return readInt16(this, offset, false, noAssert)
-}
-
-function readInt32 (buf, offset, littleEndian, noAssert) {
-  if (!noAssert) {
-    assert(typeof littleEndian === 'boolean', 'missing or invalid endian')
-    assert(offset !== undefined && offset !== null, 'missing offset')
-    assert(offset + 3 < buf.length, 'Trying to read beyond buffer length')
-  }
-
-  var len = buf.length
-  if (offset >= len)
-    return
-
-  var val = readUInt32(buf, offset, littleEndian, true)
-  var neg = val & 0x80000000
-  if (neg)
-    return (0xffffffff - val + 1) * -1
-  else
-    return val
+  if (!noAssert)
+    checkOffset(offset, 2, this.length)
+  var val = this[offset + 1] | (this[offset] << 8)
+  return (val & 0x8000) ? val | 0xFFFF0000 : val
 }
 
 Buffer.prototype.readInt32LE = function (offset, noAssert) {
-  return readInt32(this, offset, true, noAssert)
+  if (!noAssert)
+    checkOffset(offset, 4, this.length)
+
+  return (this[offset]) |
+      (this[offset + 1] << 8) |
+      (this[offset + 2] << 16) |
+      (this[offset + 3] << 24)
 }
 
 Buffer.prototype.readInt32BE = function (offset, noAssert) {
-  return readInt32(this, offset, false, noAssert)
-}
+  if (!noAssert)
+    checkOffset(offset, 4, this.length)
 
-function readFloat (buf, offset, littleEndian, noAssert) {
-  if (!noAssert) {
-    assert(typeof littleEndian === 'boolean', 'missing or invalid endian')
-    assert(offset + 3 < buf.length, 'Trying to read beyond buffer length')
-  }
-
-  return ieee754.read(buf, offset, littleEndian, 23, 4)
+  return (this[offset] << 24) |
+      (this[offset + 1] << 16) |
+      (this[offset + 2] << 8) |
+      (this[offset + 3])
 }
 
 Buffer.prototype.readFloatLE = function (offset, noAssert) {
-  return readFloat(this, offset, true, noAssert)
+  if (!noAssert)
+    checkOffset(offset, 4, this.length)
+  return ieee754.read(this, offset, true, 23, 4)
 }
 
 Buffer.prototype.readFloatBE = function (offset, noAssert) {
-  return readFloat(this, offset, false, noAssert)
-}
-
-function readDouble (buf, offset, littleEndian, noAssert) {
-  if (!noAssert) {
-    assert(typeof littleEndian === 'boolean', 'missing or invalid endian')
-    assert(offset + 7 < buf.length, 'Trying to read beyond buffer length')
-  }
-
-  return ieee754.read(buf, offset, littleEndian, 52, 8)
+  if (!noAssert)
+    checkOffset(offset, 4, this.length)
+  return ieee754.read(this, offset, false, 23, 4)
 }
 
 Buffer.prototype.readDoubleLE = function (offset, noAssert) {
-  return readDouble(this, offset, true, noAssert)
+  if (!noAssert)
+    checkOffset(offset, 8, this.length)
+  return ieee754.read(this, offset, true, 52, 8)
 }
 
 Buffer.prototype.readDoubleBE = function (offset, noAssert) {
-  return readDouble(this, offset, false, noAssert)
+  if (!noAssert)
+    checkOffset(offset, 8, this.length)
+  return ieee754.read(this, offset, false, 52, 8)
+}
+
+function checkInt (buf, value, offset, ext, max, min) {
+  if (!Buffer.isBuffer(buf)) throw new TypeError('buffer must be a Buffer instance')
+  if (value > max || value < min) throw new TypeError('value is out of bounds')
+  if (offset + ext > buf.length) throw new TypeError('index out of range')
 }
 
 Buffer.prototype.writeUInt8 = function (value, offset, noAssert) {
-  if (!noAssert) {
-    assert(value !== undefined && value !== null, 'missing value')
-    assert(offset !== undefined && offset !== null, 'missing offset')
-    assert(offset < this.length, 'trying to write beyond buffer length')
-    verifuint(value, 0xff)
-  }
-
-  if (offset >= this.length) return
-
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert)
+    checkInt(this, value, offset, 1, 0xff, 0)
+  if (!Buffer.TYPED_ARRAY_SUPPORT) value = Math.floor(value)
   this[offset] = value
   return offset + 1
 }
 
-function writeUInt16 (buf, value, offset, littleEndian, noAssert) {
-  if (!noAssert) {
-    assert(value !== undefined && value !== null, 'missing value')
-    assert(typeof littleEndian === 'boolean', 'missing or invalid endian')
-    assert(offset !== undefined && offset !== null, 'missing offset')
-    assert(offset + 1 < buf.length, 'trying to write beyond buffer length')
-    verifuint(value, 0xffff)
+function objectWriteUInt16 (buf, value, offset, littleEndian) {
+  if (value < 0) value = 0xffff + value + 1
+  for (var i = 0, j = Math.min(buf.length - offset, 2); i < j; i++) {
+    buf[offset + i] = (value & (0xff << (8 * (littleEndian ? i : 1 - i)))) >>>
+      (littleEndian ? i : 1 - i) * 8
   }
-
-  var len = buf.length
-  if (offset >= len)
-    return
-
-  for (var i = 0, j = Math.min(len - offset, 2); i < j; i++) {
-    buf[offset + i] =
-        (value & (0xff << (8 * (littleEndian ? i : 1 - i)))) >>>
-            (littleEndian ? i : 1 - i) * 8
-  }
-  return offset + 2
 }
 
 Buffer.prototype.writeUInt16LE = function (value, offset, noAssert) {
-  return writeUInt16(this, value, offset, true, noAssert)
-}
-
-Buffer.prototype.writeUInt16BE = function (value, offset, noAssert) {
-  return writeUInt16(this, value, offset, false, noAssert)
-}
-
-function writeUInt32 (buf, value, offset, littleEndian, noAssert) {
-  if (!noAssert) {
-    assert(value !== undefined && value !== null, 'missing value')
-    assert(typeof littleEndian === 'boolean', 'missing or invalid endian')
-    assert(offset !== undefined && offset !== null, 'missing offset')
-    assert(offset + 3 < buf.length, 'trying to write beyond buffer length')
-    verifuint(value, 0xffffffff)
-  }
-
-  var len = buf.length
-  if (offset >= len)
-    return
-
-  for (var i = 0, j = Math.min(len - offset, 4); i < j; i++) {
-    buf[offset + i] =
-        (value >>> (littleEndian ? i : 3 - i) * 8) & 0xff
-  }
-  return offset + 4
-}
-
-Buffer.prototype.writeUInt32LE = function (value, offset, noAssert) {
-  return writeUInt32(this, value, offset, true, noAssert)
-}
-
-Buffer.prototype.writeUInt32BE = function (value, offset, noAssert) {
-  return writeUInt32(this, value, offset, false, noAssert)
-}
-
-Buffer.prototype.writeInt8 = function (value, offset, noAssert) {
-  if (!noAssert) {
-    assert(value !== undefined && value !== null, 'missing value')
-    assert(offset !== undefined && offset !== null, 'missing offset')
-    assert(offset < this.length, 'Trying to write beyond buffer length')
-    verifsint(value, 0x7f, -0x80)
-  }
-
-  if (offset >= this.length)
-    return
-
-  if (value >= 0)
-    this.writeUInt8(value, offset, noAssert)
-  else
-    this.writeUInt8(0xff + value + 1, offset, noAssert)
-  return offset + 1
-}
-
-function writeInt16 (buf, value, offset, littleEndian, noAssert) {
-  if (!noAssert) {
-    assert(value !== undefined && value !== null, 'missing value')
-    assert(typeof littleEndian === 'boolean', 'missing or invalid endian')
-    assert(offset !== undefined && offset !== null, 'missing offset')
-    assert(offset + 1 < buf.length, 'Trying to write beyond buffer length')
-    verifsint(value, 0x7fff, -0x8000)
-  }
-
-  var len = buf.length
-  if (offset >= len)
-    return
-
-  if (value >= 0)
-    writeUInt16(buf, value, offset, littleEndian, noAssert)
-  else
-    writeUInt16(buf, 0xffff + value + 1, offset, littleEndian, noAssert)
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert)
+    checkInt(this, value, offset, 2, 0xffff, 0)
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    this[offset] = value
+    this[offset + 1] = (value >>> 8)
+  } else objectWriteUInt16(this, value, offset, true)
   return offset + 2
 }
 
-Buffer.prototype.writeInt16LE = function (value, offset, noAssert) {
-  return writeInt16(this, value, offset, true, noAssert)
+Buffer.prototype.writeUInt16BE = function (value, offset, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert)
+    checkInt(this, value, offset, 2, 0xffff, 0)
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    this[offset] = (value >>> 8)
+    this[offset + 1] = value
+  } else objectWriteUInt16(this, value, offset, false)
+  return offset + 2
 }
 
-Buffer.prototype.writeInt16BE = function (value, offset, noAssert) {
-  return writeInt16(this, value, offset, false, noAssert)
-}
-
-function writeInt32 (buf, value, offset, littleEndian, noAssert) {
-  if (!noAssert) {
-    assert(value !== undefined && value !== null, 'missing value')
-    assert(typeof littleEndian === 'boolean', 'missing or invalid endian')
-    assert(offset !== undefined && offset !== null, 'missing offset')
-    assert(offset + 3 < buf.length, 'Trying to write beyond buffer length')
-    verifsint(value, 0x7fffffff, -0x80000000)
+function objectWriteUInt32 (buf, value, offset, littleEndian) {
+  if (value < 0) value = 0xffffffff + value + 1
+  for (var i = 0, j = Math.min(buf.length - offset, 4); i < j; i++) {
+    buf[offset + i] = (value >>> (littleEndian ? i : 3 - i) * 8) & 0xff
   }
+}
 
-  var len = buf.length
-  if (offset >= len)
-    return
-
-  if (value >= 0)
-    writeUInt32(buf, value, offset, littleEndian, noAssert)
-  else
-    writeUInt32(buf, 0xffffffff + value + 1, offset, littleEndian, noAssert)
+Buffer.prototype.writeUInt32LE = function (value, offset, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert)
+    checkInt(this, value, offset, 4, 0xffffffff, 0)
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    this[offset + 3] = (value >>> 24)
+    this[offset + 2] = (value >>> 16)
+    this[offset + 1] = (value >>> 8)
+    this[offset] = value
+  } else objectWriteUInt32(this, value, offset, true)
   return offset + 4
 }
 
+Buffer.prototype.writeUInt32BE = function (value, offset, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert)
+    checkInt(this, value, offset, 4, 0xffffffff, 0)
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    this[offset] = (value >>> 24)
+    this[offset + 1] = (value >>> 16)
+    this[offset + 2] = (value >>> 8)
+    this[offset + 3] = value
+  } else objectWriteUInt32(this, value, offset, false)
+  return offset + 4
+}
+
+Buffer.prototype.writeInt8 = function (value, offset, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert)
+    checkInt(this, value, offset, 1, 0x7f, -0x80)
+  if (!Buffer.TYPED_ARRAY_SUPPORT) value = Math.floor(value)
+  if (value < 0) value = 0xff + value + 1
+  this[offset] = value
+  return offset + 1
+}
+
+Buffer.prototype.writeInt16LE = function (value, offset, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert)
+    checkInt(this, value, offset, 2, 0x7fff, -0x8000)
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    this[offset] = value
+    this[offset + 1] = (value >>> 8)
+  } else objectWriteUInt16(this, value, offset, true)
+  return offset + 2
+}
+
+Buffer.prototype.writeInt16BE = function (value, offset, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert)
+    checkInt(this, value, offset, 2, 0x7fff, -0x8000)
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    this[offset] = (value >>> 8)
+    this[offset + 1] = value
+  } else objectWriteUInt16(this, value, offset, false)
+  return offset + 2
+}
+
 Buffer.prototype.writeInt32LE = function (value, offset, noAssert) {
-  return writeInt32(this, value, offset, true, noAssert)
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert)
+    checkInt(this, value, offset, 4, 0x7fffffff, -0x80000000)
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    this[offset] = value
+    this[offset + 1] = (value >>> 8)
+    this[offset + 2] = (value >>> 16)
+    this[offset + 3] = (value >>> 24)
+  } else objectWriteUInt32(this, value, offset, true)
+  return offset + 4
 }
 
 Buffer.prototype.writeInt32BE = function (value, offset, noAssert) {
-  return writeInt32(this, value, offset, false, noAssert)
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert)
+    checkInt(this, value, offset, 4, 0x7fffffff, -0x80000000)
+  if (value < 0) value = 0xffffffff + value + 1
+  if (Buffer.TYPED_ARRAY_SUPPORT) {
+    this[offset] = (value >>> 24)
+    this[offset + 1] = (value >>> 16)
+    this[offset + 2] = (value >>> 8)
+    this[offset + 3] = value
+  } else objectWriteUInt32(this, value, offset, false)
+  return offset + 4
+}
+
+function checkIEEE754 (buf, value, offset, ext, max, min) {
+  if (value > max || value < min) throw new TypeError('value is out of bounds')
+  if (offset + ext > buf.length) throw new TypeError('index out of range')
 }
 
 function writeFloat (buf, value, offset, littleEndian, noAssert) {
-  if (!noAssert) {
-    assert(value !== undefined && value !== null, 'missing value')
-    assert(typeof littleEndian === 'boolean', 'missing or invalid endian')
-    assert(offset !== undefined && offset !== null, 'missing offset')
-    assert(offset + 3 < buf.length, 'Trying to write beyond buffer length')
-    verifIEEE754(value, 3.4028234663852886e+38, -3.4028234663852886e+38)
-  }
-
-  var len = buf.length
-  if (offset >= len)
-    return
-
+  if (!noAssert)
+    checkIEEE754(buf, value, offset, 4, 3.4028234663852886e+38, -3.4028234663852886e+38)
   ieee754.write(buf, value, offset, littleEndian, 23, 4)
   return offset + 4
 }
@@ -12231,19 +12159,8 @@ Buffer.prototype.writeFloatBE = function (value, offset, noAssert) {
 }
 
 function writeDouble (buf, value, offset, littleEndian, noAssert) {
-  if (!noAssert) {
-    assert(value !== undefined && value !== null, 'missing value')
-    assert(typeof littleEndian === 'boolean', 'missing or invalid endian')
-    assert(offset !== undefined && offset !== null, 'missing offset')
-    assert(offset + 7 < buf.length,
-        'Trying to write beyond buffer length')
-    verifIEEE754(value, 1.7976931348623157E+308, -1.7976931348623157E+308)
-  }
-
-  var len = buf.length
-  if (offset >= len)
-    return
-
+  if (!noAssert)
+    checkIEEE754(buf, value, offset, 8, 1.7976931348623157E+308, -1.7976931348623157E+308)
   ieee754.write(buf, value, offset, littleEndian, 52, 8)
   return offset + 8
 }
@@ -12256,20 +12173,56 @@ Buffer.prototype.writeDoubleBE = function (value, offset, noAssert) {
   return writeDouble(this, value, offset, false, noAssert)
 }
 
+// copy(targetBuffer, targetStart=0, sourceStart=0, sourceEnd=buffer.length)
+Buffer.prototype.copy = function (target, target_start, start, end) {
+  var source = this
+
+  if (!start) start = 0
+  if (!end && end !== 0) end = this.length
+  if (!target_start) target_start = 0
+
+  // Copy 0 bytes; we're done
+  if (end === start) return
+  if (target.length === 0 || source.length === 0) return
+
+  // Fatal error conditions
+  if (end < start) throw new TypeError('sourceEnd < sourceStart')
+  if (target_start < 0 || target_start >= target.length)
+    throw new TypeError('targetStart out of bounds')
+  if (start < 0 || start >= source.length) throw new TypeError('sourceStart out of bounds')
+  if (end < 0 || end > source.length) throw new TypeError('sourceEnd out of bounds')
+
+  // Are we oob?
+  if (end > this.length)
+    end = this.length
+  if (target.length - target_start < end - start)
+    end = target.length - target_start + start
+
+  var len = end - start
+
+  if (len < 100 || !Buffer.TYPED_ARRAY_SUPPORT) {
+    for (var i = 0; i < len; i++) {
+      target[i + target_start] = this[i + start]
+    }
+  } else {
+    target._set(this.subarray(start, start + len), target_start)
+  }
+}
+
 // fill(value, start=0, end=buffer.length)
 Buffer.prototype.fill = function (value, start, end) {
   if (!value) value = 0
   if (!start) start = 0
   if (!end) end = this.length
 
-  assert(end >= start, 'end < start')
+  if (end < start) throw new TypeError('end < start')
 
   // Fill 0 bytes; we're done
   if (end === start) return
   if (this.length === 0) return
 
-  assert(start >= 0 && start < this.length, 'start out of bounds')
-  assert(end >= 0 && end <= this.length, 'end out of bounds')
+  if (start < 0 || start >= this.length) throw new TypeError('start out of bounds')
+  if (end < 0 || end > this.length) throw new TypeError('end out of bounds')
 
   var i
   if (typeof value === 'number') {
@@ -12287,26 +12240,13 @@ Buffer.prototype.fill = function (value, start, end) {
   return this
 }
 
-Buffer.prototype.inspect = function () {
-  var out = []
-  var len = this.length
-  for (var i = 0; i < len; i++) {
-    out[i] = toHex(this[i])
-    if (i === exports.INSPECT_MAX_BYTES) {
-      out[i + 1] = '...'
-      break
-    }
-  }
-  return '<Buffer ' + out.join(' ') + '>'
-}
-
 /**
  * Creates a new `ArrayBuffer` with the *copied* memory of the buffer instance.
  * Added in Node 0.12. Only available in browsers that support ArrayBuffer.
  */
 Buffer.prototype.toArrayBuffer = function () {
   if (typeof Uint8Array !== 'undefined') {
-    if (TYPED_ARRAY_SUPPORT) {
+    if (Buffer.TYPED_ARRAY_SUPPORT) {
       return (new Buffer(this)).buffer
     } else {
       var buf = new Uint8Array(this.length)
@@ -12316,7 +12256,7 @@ Buffer.prototype.toArrayBuffer = function () {
       return buf.buffer
     }
   } else {
-    throw new Error('Buffer.toArrayBuffer not supported in this browser')
+    throw new TypeError('Buffer.toArrayBuffer not supported in this browser')
   }
 }
 
@@ -12399,12 +12339,6 @@ function stringtrim (str) {
   return str.replace(/^\s+|\s+$/g, '')
 }
 
-function isArray (subject) {
-  return (Array.isArray || function (subject) {
-    return Object.prototype.toString.call(subject) === '[object Array]'
-  })(subject)
-}
-
 function isArrayish (subject) {
   return isArray(subject) || Buffer.isBuffer(subject) ||
       subject && typeof subject === 'object' &&
@@ -12478,36 +12412,7 @@ function decodeUtf8Char (str) {
   }
 }
 
-/*
- * We have to make sure that the value is a valid integer. This means that it
- * is non-negative. It has no fractional component and that it does not
- * exceed the maximum allowed value.
- */
-function verifuint (value, max) {
-  assert(typeof value === 'number', 'cannot write a non-number as a number')
-  assert(value >= 0, 'specified a negative value for writing an unsigned value')
-  assert(value <= max, 'value is larger than maximum value for type')
-  assert(Math.floor(value) === value, 'value has a fractional component')
-}
-
-function verifsint (value, max, min) {
-  assert(typeof value === 'number', 'cannot write a non-number as a number')
-  assert(value <= max, 'value larger than maximum allowed value')
-  assert(value >= min, 'value smaller than minimum allowed value')
-  assert(Math.floor(value) === value, 'value has a fractional component')
-}
-
-function verifIEEE754 (value, max, min) {
-  assert(typeof value === 'number', 'cannot write a non-number as a number')
-  assert(value <= max, 'value larger than maximum allowed value')
-  assert(value >= min, 'value smaller than minimum allowed value')
-}
-
-function assert (test, message) {
-  if (!test) throw new Error(message || 'Failed assertion')
-}
-
-},{"base64-js":120,"ieee754":121}],120:[function(require,module,exports){
+},{"base64-js":121,"ieee754":122,"is-array":123}],121:[function(require,module,exports){
 var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 ;(function (exports) {
@@ -12629,7 +12534,7 @@ var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 	exports.fromByteArray = uint8ToBase64
 }(typeof exports === 'undefined' ? (this.base64js = {}) : exports))
 
-},{}],121:[function(require,module,exports){
+},{}],122:[function(require,module,exports){
 exports.read = function(buffer, offset, isLE, mLen, nBytes) {
   var e, m,
       eLen = nBytes * 8 - mLen - 1,
@@ -12715,9 +12620,44 @@ exports.write = function(buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128;
 };
 
-},{}],122:[function(require,module,exports){
-module.exports=require(103)
 },{}],123:[function(require,module,exports){
+
+/**
+ * isArray
+ */
+
+var isArray = Array.isArray;
+
+/**
+ * toString
+ */
+
+var str = Object.prototype.toString;
+
+/**
+ * Whether or not the given `val`
+ * is an array.
+ *
+ * example:
+ *
+ *        isArray([]);
+ *        // > true
+ *        isArray(arguments);
+ *        // > false
+ *        isArray('');
+ *        // > false
+ *
+ * @param {mixed} val
+ * @return {bool}
+ */
+
+module.exports = isArray || function (val) {
+  return !! val && '[object Array]' == str.call(val);
+};
+
+},{}],124:[function(require,module,exports){
+module.exports=require(103)
+},{"/projects/fontpath-modules/fontpath-gl/node_modules/gl-vignette-background/node_modules/inherits/inherits_browser.js":103}],125:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -12725,6 +12665,8 @@ var process = module.exports = {};
 process.nextTick = (function () {
     var canSetImmediate = typeof window !== 'undefined'
     && window.setImmediate;
+    var canMutationObserver = typeof window !== 'undefined'
+    && window.MutationObserver;
     var canPost = typeof window !== 'undefined'
     && window.postMessage && window.addEventListener
     ;
@@ -12733,8 +12675,29 @@ process.nextTick = (function () {
         return function (f) { return window.setImmediate(f) };
     }
 
+    var queue = [];
+
+    if (canMutationObserver) {
+        var hiddenDiv = document.createElement("div");
+        var observer = new MutationObserver(function () {
+            var queueList = queue.slice();
+            queue.length = 0;
+            queueList.forEach(function (fn) {
+                fn();
+            });
+        });
+
+        observer.observe(hiddenDiv, { attributes: true });
+
+        return function nextTick(fn) {
+            if (!queue.length) {
+                hiddenDiv.setAttribute('yes', 'no');
+            }
+            queue.push(fn);
+        };
+    }
+
     if (canPost) {
-        var queue = [];
         window.addEventListener('message', function (ev) {
             var source = ev.source;
             if ((source === window || source === null) && ev.data === 'process-tick') {
@@ -12774,7 +12737,7 @@ process.emit = noop;
 
 process.binding = function (name) {
     throw new Error('process.binding is not supported');
-}
+};
 
 // TODO(shtylman)
 process.cwd = function () { return '/' };
@@ -12782,14 +12745,14 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],124:[function(require,module,exports){
+},{}],126:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],125:[function(require,module,exports){
+},{}],127:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -13378,5 +13341,5 @@ function hasOwnProperty(obj, prop) {
   return Object.prototype.hasOwnProperty.call(obj, prop);
 }
 
-}).call(this,require("sycGbZ"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":124,"inherits":122,"sycGbZ":123}]},{},[3])
+}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"./support/isBuffer":126,"_process":125,"inherits":124}]},{},[3]);

@@ -1,5 +1,6 @@
 var TextRenderer = require('fontpath-simple-renderer')
 var createShader = require('gl-basic-shader')
+var inherits = require('inherits')
 
 //require only the math we really need..
 var mat4 = {
@@ -42,11 +43,7 @@ function TriangleRenderer(gl, options) {
 }
 
 //inherits from TextRenderer
-TriangleRenderer.prototype = Object.create(TextRenderer.prototype)
-TriangleRenderer.constructor = TriangleRenderer
-
-//copy statics
-TriangleRenderer.Align = TextRenderer.Align
+inherits(TriangleRenderer, TextRenderer)
 
 TriangleRenderer.prototype.triangulateGlyph = function(glyph) {
     throw new Error('this method should be implemented by subclasses')
@@ -106,9 +103,9 @@ TriangleRenderer.prototype.draw = function(x, y, start, end) {
     var result = this.render(x, y, start, end)
 
     for (var i=0; i<result.underlines.length; i++) {
-        //..draw underlines somehow
+        //TODO: maybe use gl-sprite-batch for underlines?
     }
-    for (var i=0; i<result.glyphs.length; i++) {
+    for (i=0; i<result.glyphs.length; i++) {
         var g = result.glyphs[i]
         this._drawGlyph(g)
     }
