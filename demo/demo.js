@@ -50,7 +50,7 @@ function start(options, gl) {
 
     renderer = createText(gl, {
         font: options.font,
-        text: 'lorem ipsum dolor.',
+        text: 'lorem ipsum dolor sit amet for fil boom balm',
         fontSize: options.fontSize || 110,
         align: 'center',
         simplifyAmount: options.simplifyAmount,
